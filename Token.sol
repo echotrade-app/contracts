@@ -4,23 +4,53 @@ pragma solidity >=0.7.0 <0.9.0;
 
 import "./ITRC20.sol";
 import "./lib/SafeMath.sol";
+import "./lib/iterable-mapping.sol";
 
 contract Token is ITRC20 {
   using SafeMath for uint256;
+  using IterableMapping for IterableMapping.Map;
 
   string private _name;
   string private _symbol;
   uint8 private _decimals;
 
-  mapping (address => uint256) private _balances;
+  bytes4 private _transferFromSelector;
+  bytes4 private _transferSelector;
+  bytes4 private _balanceOf;
+
+
+  IterableMapping.Map private _balances;
+
   mapping (address => mapping (address => uint256)) private _allowances;
+
+  /** @dev used for profit sharing
+    */
+  mapping (address => mapping (address => uint256)) private _profits;
+
+  mapping (address => uint256) private _lockedFunds;
+
+  address payable private _superAdmin;
 
   uint256 private _totalSupply;
   
+  constructor(string memory name, string memory symbol, uint8 decimals) {
+    _name = name;
+    _symbol = symbol;
+    _decimals = decimals;
+
+    _superAdmin = payable(msg.sender);
+    
+    _transferFromSelector = bytes4(keccak256("transferFrom(address,address,uint256)"));
+    _transferSelector = bytes4(keccak256("transfer(address,uint256)"));
+    _balanceOf = bytes4(keccak256("balanceOf(address)"));
+    
+    _mint(msg.sender, 1000*10**_decimals);
+  }
+
   /**
     * @dev Returns the name of the token.
     */
-  function name() external view returns (string memory) {
+  function name() public view returns (string memory) {
     return _name;
   }
 
@@ -28,7 +58,7 @@ contract Token is ITRC20 {
     * @dev Returns the symbol of the token, usually a shorter version of the
     * name.
     */
-  function symbol() external view returns (string memory) {
+  function symbol() public view returns (string memory) {
     return _symbol;
   }
 
@@ -37,7 +67,7 @@ contract Token is ITRC20 {
     * For example, if `decimals` equals `2`, a balance of `505` tokens should
     * be displayed to a user as `5,05` (`505 / 10 ** 2`).
     */
-  function decimals() external view returns (uint8) {
+  function decimals() public view returns (uint8) {
     return _decimals;
   }
 
@@ -52,7 +82,7 @@ contract Token is ITRC20 {
     * @dev See {ITRC20-balanceOf}.
     */
   function balanceOf(address account) external view returns (uint256) {
-    return _balances[account];
+    return IterableMapping.get(_balances, account);
   }
 
   /**
@@ -158,9 +188,13 @@ contract Token is ITRC20 {
   function _transfer(address sender, address recipient, uint256 amount) internal {
       require(sender != address(0), "TRC20: transfer from the zero address");
       require(recipient != address(0), "TRC20: transfer to the zero address");
-
-      _balances[sender] = _balances[sender].sub(amount);
-      _balances[recipient] = _balances[recipient].add(amount);
+      
+      // _balances[sender] = _balances[sender].sub(amount);
+      IterableMapping.set(_balances, sender, IterableMapping.get(_balances, sender).sub(amount));
+      
+      // _balances[recipient] = _balances[recipient].add(amount);
+      IterableMapping.set(_balances, recipient, IterableMapping.get(_balances, recipient).add(amount));
+      
       emit Transfer(sender, recipient, amount);
   }
 
@@ -177,11 +211,14 @@ contract Token is ITRC20 {
       require(account != address(0), "TRC20: mint to the zero address");
 
       _totalSupply = _totalSupply.add(amount);
-      _balances[account] = _balances[account].add(amount);
+
+      // _balances[account] = _balances[account].add(amount);
+      IterableMapping.set(_balances, account, IterableMapping.get(_balances, account).add(amount));
+      
       emit Transfer(address(0), account, amount);
   }
 
-    /**
+  /**
     * @dev Destroys `amount` tokens from `account`, reducing the
     * total supply.
     *
@@ -196,7 +233,9 @@ contract Token is ITRC20 {
       require(account != address(0), "TRC20: burn from the zero address");
 
       _totalSupply = _totalSupply.sub(value);
-      _balances[account] = _balances[account].sub(value);
+
+      // _balances[account] = _balances[account].sub(value);
+      IterableMapping.set(_balances, account, IterableMapping.get(_balances, account).sub(value));
       emit Transfer(account, address(0), value);
   }
 
@@ -232,6 +271,66 @@ contract Token is ITRC20 {
       _approve(account, msg.sender, _allowances[account][msg.sender].sub(amount));
   }
 
+  /***********************************
+    * @dev profitShare(address, amount) 
+    * sender is already approved the amount in the _contract address 
+    */
+  function profitShareApproved(address payable _contract, uint256 _amount) public _mustBeTransferred(_contract,_amount,msg.sender) returns (bool) {
+    return _profitShare(_contract,_amount);
+  }
   
+  function profitShareApproved(address payable _contract, uint256 _amount, address _from) public _mustBeTransferred(_contract,_amount,_from) returns (bool) {
+    return _profitShare(_contract,_amount);
+  }
+
+  function _profitShare(address _contract, uint256 _amount) internal returns (bool) {
+    _lockedFunds[_contract] = _lockedFunds[_contract].add(_amount);
+    for (uint i = 0; i < _balances.size(); ++i) {
+        address key = IterableMapping.getKeyAtIndex(_balances, i);
+        _profits[key][_contract] = _profits[key][_contract].add(SafeMath.div(SafeMath.mul(_balances.get(key),_amount), _totalSupply));
+    }
+  }
+
+  function profitShareBalance(address _contract, uint256 _amount) public returns (bool) {
+    return _profitShare(_contract, _amount);
+  }
+
+  function withdrawProfit(address _contract) public returns (bool success) {
+    // todo move this to a midifyer
+    require(_profits[msg.sender][_contract] > 0,"no withdrawable profit");
+    _withrawProfit(_contract,msg.sender);
+    return true;
+  }
+  
+  function _withrawProfit(address _contract, address _to) internal {
+    (bool _success,) = _contract.call(abi.encodeWithSelector(_transferSelector,_to, _profits[_to][_contract]));
+    require(_success,"Transfering token fials");
+    _lockedFunds[_contract] = _lockedFunds[_contract].sub(_profits[_to][_contract]);
+    _profits[_to][_contract] = 0;
+  }
+
+  fallback() external payable {}
+
+
+  function withdrawableProfit(address _account, address _contract ) public view returns (uint256) {
+    return _profits[_account][_contract];
+  }
+
+  modifier _mustBeTransferred(address _contract, uint256 _amount, address _from) {
+    (bool _success, ) = _contract.call(abi.encodeWithSelector(_transferFromSelector,_from, address(this), _amount));
+    require(_success,"Transfering from _contract failed");
+    _;
+  }
+
+  modifier _haveSufficientFund(address _contract, uint256 _amount) {
+
+    // require(_success,"Transfering from _contract failed");
+    _;
+  }
+
+  function mybalance(address _contract) public returns (uint256) {
+    (bool _success,bytes memory _data ) = _contract.call(abi.encodeWithSelector(_balanceOf,address(this)));
+    return uint256(0);
+  }
 
 }
