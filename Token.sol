@@ -291,22 +291,24 @@ contract Token is ITRC20 {
     }
   }
 
-  function profitShareBalance(address _contract, uint256 _amount) public returns (bool) {
+  function profitShareBalance(address _contract, uint256 _amount) public _haveSufficientFund(_contract,_amount) returns (bool) {
     return _profitShare(_contract, _amount);
   }
 
-  function withdrawProfit(address _contract) public returns (bool success) {
-    // todo move this to a midifyer
-    require(_profits[msg.sender][_contract] > 0,"no withdrawable profit");
-    _withrawProfit(_contract,msg.sender);
-    return true;
+  function withdrawProfit(address _contract) public _haveSufficientWithdrawProfit(_contract,msg.sender) returns (bool) {
+    return _withrawProfit(_contract,msg.sender);
+  }
+
+  function withdrawProfit(address _contract,address _to) public _haveSufficientWithdrawProfit(_contract,_to) returns (bool) {
+    return _withrawProfit(_contract,_to);
   }
   
-  function _withrawProfit(address _contract, address _to) internal {
+  function _withrawProfit(address _contract, address _to) internal returns (bool) {
     (bool _success,) = _contract.call(abi.encodeWithSelector(_transferSelector,_to, _profits[_to][_contract]));
     require(_success,"Transfering token fials");
     _lockedFunds[_contract] = _lockedFunds[_contract].sub(_profits[_to][_contract]);
     _profits[_to][_contract] = 0;
+    return true;
   }
 
   fallback() external payable {}
@@ -316,6 +318,8 @@ contract Token is ITRC20 {
     return _profits[_account][_contract];
   }
 
+   
+
   modifier _mustBeTransferred(address _contract, uint256 _amount, address _from) {
     (bool _success, ) = _contract.call(abi.encodeWithSelector(_transferFromSelector,_from, address(this), _amount));
     require(_success,"Transfering from _contract failed");
@@ -323,14 +327,29 @@ contract Token is ITRC20 {
   }
 
   modifier _haveSufficientFund(address _contract, uint256 _amount) {
-
-    // require(_success,"Transfering from _contract failed");
+    // require to not LocledAssets + Amount >= BalanceOf(this) at that contract
+    require(_lockedFunds[_contract].add(_amount) <= mybalance(_contract),"Insufficient funds for sharing this amount");
+    _;
+  }
+  modifier _haveSufficientWithdrawProfit(address _contract, address _to) {
+    require(_profits[_to][_contract] > 0,"no withdrawable profit");
     _;
   }
 
-  function mybalance(address _contract) public returns (uint256) {
-    (bool _success,bytes memory _data ) = _contract.call(abi.encodeWithSelector(_balanceOf,address(this)));
-    return uint256(0);
+  modifier _onlySuperAdmin() {
+    require(msg.sender == _superAdmin,"you are not the super admin");
+    _;
   }
+
+  function mybalance(address _contract) internal returns (uint256) {
+    (bool _success,bytes memory _data ) = _contract.call(abi.encodeWithSelector(_balanceOf,address(this)));
+    require(_success,"Fetching balance failed");
+    return uint256(bytes32(_data));
+  }
+
+  function lockedFunds(address _contract) public view returns (uint256) {
+    return _lockedFunds[_contract];
+  }
+
 
 }
