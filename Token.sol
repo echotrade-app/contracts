@@ -5,6 +5,8 @@ pragma solidity >=0.7.0 <0.9.0;
 import "./ITRC20.sol";
 import "./lib/SafeMath.sol";
 import "./lib/iterable-mapping.sol";
+import "./lib/proposal.sol";
+import "./lib/Basket.sol";
 
 contract Token is ITRC20 {
   using SafeMath for uint256;
@@ -18,6 +20,10 @@ contract Token is ITRC20 {
   bytes4 private _transferSelector;
   bytes4 private _balanceOf;
 
+  Basket[] public _baskets;
+
+  
+  // Proposal.Surrogate public _proposal; 
 
   IterableMapping.Map private _balances;
 
@@ -47,6 +53,8 @@ contract Token is ITRC20 {
     _mint(msg.sender, 1000*10**_decimals);
   }
 
+  // ─── Details ─────────────────────────────────────────────────────────
+
   /**
     * @dev Returns the name of the token.
     */
@@ -70,6 +78,8 @@ contract Token is ITRC20 {
   function decimals() public view returns (uint8) {
     return _decimals;
   }
+
+  // ─── TRC20 ───────────────────────────────────────────────────────────
 
   /**
     * @dev See {ITRC20-totalSupply}.
@@ -271,15 +281,21 @@ contract Token is ITRC20 {
       _approve(account, msg.sender, _allowances[account][msg.sender].sub(amount));
   }
 
-  /***********************************
+  // ─── Profit Share ────────────────────────────────────────────────────
+
+  function profitShareBalance(address _contract, uint256 _amount) public _haveSufficientFund(_contract,_amount) returns (bool) {
+    return _profitShare(_contract, _amount);
+  }
+
+  /**
     * @dev profitShare(address, amount) 
     * sender is already approved the amount in the _contract address 
     */
-  function profitShareApproved(address payable _contract, uint256 _amount) public _mustBeTransferred(_contract,_amount,msg.sender) returns (bool) {
+  function profitShareApproved(address payable _contract, uint256 _amount) public _mustBeTransferred(_contract,_amount,msg.sender,address(this)) returns (bool) {
     return _profitShare(_contract,_amount);
   }
   
-  function profitShareApproved(address payable _contract, uint256 _amount, address _from) public _mustBeTransferred(_contract,_amount,_from) returns (bool) {
+  function profitShareApproved(address payable _contract, uint256 _amount, address _from) public _mustBeTransferred(_contract,_amount,_from,address(this)) returns (bool) {
     return _profitShare(_contract,_amount);
   }
 
@@ -291,9 +307,7 @@ contract Token is ITRC20 {
     }
   }
 
-  function profitShareBalance(address _contract, uint256 _amount) public _haveSufficientFund(_contract,_amount) returns (bool) {
-    return _profitShare(_contract, _amount);
-  }
+  // ─── Withdraw ─────────────────────────────────────────────────────────
 
   function withdrawProfit(address _contract) public _haveSufficientWithdrawProfit(_contract,msg.sender) returns (bool) {
     return _withrawProfit(_contract,msg.sender);
@@ -311,17 +325,51 @@ contract Token is ITRC20 {
     return true;
   }
 
-  fallback() external payable {}
-
-
   function withdrawableProfit(address _account, address _contract ) public view returns (uint256) {
     return _profits[_account][_contract];
   }
 
-   
+  function lockedFunds(address _contract) public view returns (uint256) {
+    return _lockedFunds[_contract];
+  }
 
-  modifier _mustBeTransferred(address _contract, uint256 _amount, address _from) {
-    (bool _success, ) = _contract.call(abi.encodeWithSelector(_transferFromSelector,_from, address(this), _amount));
+  // ─── Superadmin Functions ────────────────────────────────────────────
+
+  /**
+    * @dev surrogate the superadmin account to new account.
+    * 
+   */
+  function surrogate(address payable _account) public _onlySuperAdmin() returns (bool) {
+    _superAdmin = _account;
+    return true;
+  }
+
+  // ─── Basket Functions ────────────────────────────────────────────────
+
+  function createBasket(address _baseToken,uint256 _ownerFund) public returns (address) {
+    Basket basket = new Basket(msg.sender, address(this), _baseToken,_ownerFund);
+    _baskets.push(basket);
+    return address(basket);
+  }
+
+  
+
+  // ─── Utils ───────────────────────────────────────────────────────────
+
+
+  function mybalance(address _contract) internal returns (uint256) {
+    (bool _success,bytes memory _data ) = _contract.call(abi.encodeWithSelector(_balanceOf,address(this)));
+    require(_success,"Fetching balance failed");
+    return uint256(bytes32(_data));
+  }
+
+  fallback() external payable {}
+
+  // ─── Modifiers ───────────────────────────────────────────────────────
+
+  
+  modifier _mustBeTransferred(address _contract, uint256 _amount, address _from,address _to) {
+    (bool _success, ) = _contract.call(abi.encodeWithSelector(_transferFromSelector,_from, _to, _amount));
     require(_success,"Transfering from _contract failed");
     _;
   }
@@ -339,16 +387,6 @@ contract Token is ITRC20 {
   modifier _onlySuperAdmin() {
     require(msg.sender == _superAdmin,"you are not the super admin");
     _;
-  }
-
-  function mybalance(address _contract) internal returns (uint256) {
-    (bool _success,bytes memory _data ) = _contract.call(abi.encodeWithSelector(_balanceOf,address(this)));
-    require(_success,"Fetching balance failed");
-    return uint256(bytes32(_data));
-  }
-
-  function lockedFunds(address _contract) public view returns (uint256) {
-    return _lockedFunds[_contract];
   }
 
 
