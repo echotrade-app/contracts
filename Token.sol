@@ -10,7 +10,8 @@ import "./lib/Basket.sol";
 
 contract Token is ITRC20 {
   using SafeMath for uint256;
-
+  using IterableMapping for IterableMapping.Map;
+  
   string private _name;
   string private _symbol;
   uint8 private _decimals;
@@ -348,13 +349,14 @@ contract Token is ITRC20 {
   function createBasket(address _baseToken,uint256 _ownerFund) public returns (address) {
     Basket basket = new Basket(msg.sender, address(this), _baseToken,_ownerFund);
     _baskets.push(basket);
+    (bool _success, ) = _baseToken.call(abi.encodeWithSelector(_transferFromSelector,msg.sender, address(basket), _ownerFund));
+    require(_success,"Transfering from _contract failed");
     return address(basket);
   }
 
   
 
   // ─── Utils ───────────────────────────────────────────────────────────
-
 
   function mybalance(address _contract) internal returns (uint256) {
     (bool _success,bytes memory _data ) = _contract.call(abi.encodeWithSelector(_balanceOf,address(this)));

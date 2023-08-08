@@ -7,6 +7,7 @@ import "./iterable-mapping.sol";
 
 contract Basket {
   using SafeMath for uint256;
+  using IterableMapping for IterableMapping.Map;
   
   enum status {pending, active, closed }
 
@@ -15,7 +16,7 @@ contract Basket {
   uint256 public _ownerFund;
   uint64 private _iteration;
   address public _baseToken;
-  address payable public _admin;
+  address public _admin;
   
 
   uint256 public _totalLiquidity;
@@ -30,6 +31,11 @@ contract Basket {
   mapping (address => uint256) _releasedFunds;
   mapping (address => uint256) _profits;
 
+  bytes4 private _transferFromSelector;
+  bytes4 private _transferSelector;
+  bytes4 private _balanceOf;
+
+  
   // totalLiquidity = availbaleLiquidity + lockedFunds; 
   // totalLiquidity = queuedFunds + _releasedFunds + _profits + _lockedFunds
   // withdrawableFunds = queuedFunds + _releasedFunds
@@ -39,18 +45,28 @@ contract Basket {
   //                 |LockedFunds|--Profits-->
   //                 |----<<<----|
 
-  constructor(address _owner,address _admin, address _baseToken, uint256 _ownerFund) {
-    _owner = _owner;
-    _admin = _admin;
-    _baseToken = _baseToken;
-    _ownerFund = _ownerFund;
+  constructor(address owner,address admin, address baseToken, uint256 ownerFund) {
+    _owner = owner;
+    _admin = admin;
+    _baseToken = baseToken;
+    _ownerFund = ownerFund;
+
+    _transferFromSelector = bytes4(keccak256("transferFrom(address,address,uint256)"));
+    _transferSelector = bytes4(keccak256("transfer(address,uint256)"));
+    _balanceOf = bytes4(keccak256("balanceOf(address)"));
   }
 
   // returns total liquidity of the contract
-  function totalLiquidity() public view returns (uint256) {}
+  function totalLiquidity() public returns (uint256) {
+    return availableLiquidity().add(_lockedFunds);
+  }
 
   // returns the amount of available Liquidity of the contract
-  function availbaleLiquidity() public view returns (uint256) {}
+  function availableLiquidity() public returns (uint256) {
+    (bool _success,bytes memory _data ) = _baseToken.call(abi.encodeWithSelector(_balanceOf,address(this)));
+    require(_success,"Fetching balance failed");
+    return uint256(bytes32(_data));
+  }
  
   // returns the sum of the main funds.
   function baseLiquidity() external view returns (uint256) {}
@@ -107,7 +123,13 @@ contract Basket {
 
 
 
-  function _withdrawProfit(uint256 _amount,address _account) internal returns (bool) {}
+  function _withdrawProfit(uint256 _amount,address _account) internal returns (bool) {
+    _profits[_account] = _profits[_account].sub(_amount);
+
+    (bool success,) =_baseToken.call(abi.encodeWithSelector(_transferSelector, _account, _amount));
+    require(success,"Transfering from contract failed");
+    
+  }
   function _withdrawFund(uint256 _amount,address _account) internal returns (bool) {}
   
   // reinvest from the Profit gained
