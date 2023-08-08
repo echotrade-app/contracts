@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.17;
+pragma solidity >=0.8.17 <0.9.0;
+
 
 library IterableMapping {
     // Iterable mapping from address to uint;
