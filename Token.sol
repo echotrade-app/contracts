@@ -10,7 +10,6 @@ import "./lib/Basket.sol";
 
 contract Token is ITRC20 {
   using SafeMath for uint256;
-  using IterableMapping for IterableMapping.Map;
 
   string private _name;
   string private _symbol;
@@ -39,7 +38,7 @@ contract Token is ITRC20 {
 
   uint256 private _totalSupply;
   
-  constructor(string memory name, string memory symbol, uint8 decimals) {
+  constructor(string memory name, string memory symbol, uint8 decimals) payable {
     _name = name;
     _symbol = symbol;
     _decimals = decimals;
