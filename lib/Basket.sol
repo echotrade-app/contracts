@@ -136,6 +136,8 @@ contract Basket {
     return __transfer(_amount, _account);
   }
 
+
+  // __transfer is very private function to transfer baseToken from this contract account to _account. 
   function __transfer(uint256 _amount,address _account) internal returns (bool) {
     (bool success,) =_baseToken.call(abi.encodeWithSelector(_transferSelector, _account, _amount));
     require(success,"Transfering from contract failed");
@@ -165,40 +167,50 @@ contract Basket {
     return _reinvestFromProfit(_amount, _from);
   }
 
+  // _reinvestFromProfit 
   function _reinvestFromProfit(uint256 _amount, address _from) _isAcceptable(_amount) internal returns (bool) {
     _profits[_from] = _profits[_from].sub(_amount);
     _queuedFunds.set(_from, _queuedFunds.get(_from).add(_amount));
     return true;
   }
+
   // ─── Modifiers ───────────────────────────────────────────────────────
 
+
+  // specify weather the basket is active or not.
   modifier _isActive() {
     require(_status == status.active, "Basket is not active yet");
     _;
   }
   
+  // only owners (trader or superadmin) can call the function
   modifier _onlyOwner() {
     require(msg.sender == _owner || msg.sender == _admin, "Only owner is allowed to call this method");
     _;
   }
 
+  // only superadmin can call the function
   modifier _onlyAdmin() {
     require(msg.sender == _admin, "Only admin is allowed to call this method");
     _;
   }
 
+  // the _amount should be transfered from the _from account to the _to account.
   modifier _mustBeTransferred(uint256 _amount, address _from,address _to) {
     (bool _success, ) = _baseToken.call(abi.encodeWithSelector(_transferFromSelector,_from, _to, _amount));
     require(_success,"Transfering from _contract failed");
+    // todo is this section should be here or not? since the _to account is not speicifed by address(this)
     _availableLiquidity = _availableLiquidity.add(_amount);
     _;
   }
 
+  // check the signature of allowance of investing which is granted by the superadmin.
   modifier _mustBeAllowedToInvest(uint256 _amount, address _from, bytes memory _signature) {
     // todo invest signature {amount(uint256),from(address),expiration(blockHeight)}
     _;
   }
 
+  // check that after investing this _amount the total funds is not exceeding the _maximum funds.
   modifier _isAcceptable(uint256 _amount) {
     require(_totalQueuedFunds.add(_totalLockedFunds).add(_amount).sub(_totalWithdrawRequests) <= _maximumFund,"the Basket is full");
     _;
