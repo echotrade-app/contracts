@@ -22,9 +22,12 @@ contract Basket {
 
   uint256 public _totalLiquidity;
   uint256 public _availableLiquidity;
+  uint256 public _exchangeLockedLiquidity; // _totalLiquidity = _availableLiquidity + _exchangeLockedLiquidity + totalProfits
+  uint256 public _inContractLockedLiquidity; // _totalLockedFunds = _exchangeLockedLiquidity + _inContractLockedLiquidity
+
   uint256 public _totalLockedFunds;
-  uint256 private _totalWithdrawRequests;
-  uint256 private _totalQueuedFunds;
+  uint256 public _totalWithdrawRequests;
+  uint256 public _totalQueuedFunds;
 
   IterableMapping.Map private _withdrawRequests;
 
@@ -89,35 +92,101 @@ contract Basket {
   }
 
   function _profitShare(uint256 _amount,bytes memory _history,bytes memory _signature) internal _onlyOwner() returns (bool)  {
-    // _realLiquidity = _mybalance(_baseToken);
-    if (_totalQueuedFunds > _amount ) {
-      // _totalQueuedFunds - _amount should be locked
-      
+    // Manage Liquidity
+    // share profit/loss
+    // luck queued funds
+    // release requested funds
 
-    } else if (_totalQueuedFunds < _amount) {
-      // amount should be transfer befored.
-      
-    } else {
-      // _totalQueuedFunds == _amount
-      // not transfering required
+    
+   
+    // ─── Manage Liquidity ────────────────────────────────────────
+    int256 _requiredTransfer = int256(_amount + _totalWithdrawRequests) - int256(_totalQueuedFunds);
+    // the _requiredTransfer should be transfer from exchange to smart Contract.
+    // todo approve profit before
+    if (_requiredTransfer > 0) {
+      require(_mybalance(_baseToken) >= _availableLiquidity.add(uint256(_requiredTransfer)));
+      _availableLiquidity = _availableLiquidity.add(uint256(_requiredTransfer));
+
+      _exchangeLockedLiquidity = _exchangeLockedLiquidity.sub(uint256(_requiredTransfer));
     }
+
+    _inContractLockedLiquidity = _inContractLockedLiquidity.add(_totalQueuedFunds).sub(_totalWithdrawRequests);
+
+    _totalLockedFunds= _totalLockedFunds.add(_totalQueuedFunds).sub(_totalWithdrawRequests);
+
+    
     
 
-    _totalLockedFunds = _totalLockedFunds.add(_totalQueuedFunds).sub(_totalWithdrawRequests)
+    // ─── Share Profit And Loss ───────────────────────────────────
+    __profit(_amount);
 
-    require(_realLiquidity.sub(_availableLiquidity.add(_amount)) >= 0,"insufficent fund");
+    // ─── Lock Queued Funds ───────────────────────────────────────
+    __lockQueuedFunds();
+    
+    // ─── Release Requested Funds ─────────────────────────────────
+
+    __releaseFund();
 
   }
 
-  // the owner or admin can call this function to specify the amount of loss
-  // todo add hash of Positions to this function
-  function _burnBase(uint256 _amount,bytes memory _signature) internal _onlyOwner() returns (bool) {}
+  function __loss(uint256 _amount) internal returns (bool) {
+    for (uint i = 0; i < _lockedFunds.size(); ++i) {
+      address key = _lockedFunds.getKeyAtIndex(i);
+      if (_lockedFunds.get(key) == 0) {
+        continue;
+      }
+      _lockedFunds.set(key,_lockedFunds.get(key).sub( SafeMath.div(SafeMath.mul(_lockedFunds.get(key) , _amount),_totalLockedFunds)));
+    }
+  }
+  
+  function __profit(uint256 _amount) internal  {
+    for (uint i = 0; i < _lockedFunds.size(); ++i) {
+        address key = _lockedFunds.getKeyAtIndex(i);
+        if (_lockedFunds.get(key) == 0) {
+          continue;
+        }
+        _profits[key] = _profits[key].add(SafeMath.div(SafeMath.mul(_lockedFunds.get(key) , _amount),_totalLockedFunds));
+    }
+  }
+
+  function __lockQueuedFunds() internal {
+    for (uint i = 0; i < _queuedFunds.size(); ++i) {
+      address key = _queuedFunds.getKeyAtIndex(i);
+      _lockedFunds.set(key,_lockedFunds.get(key).add(_queuedFunds.get(key)));
+      _queuedFunds.remove(key);
+    }
+  }
 
   function __releaseFund() internal {
-    for (uint i = 0; i < _totalWithdrawRequests.size(); ++i) {
-        address key = IterableMapping.getKeyAtIndex(_totalWithdrawRequests, i);
+    for (uint i = 0; i < _withdrawRequests.size(); ++i) {
+        address key = IterableMapping.getKeyAtIndex(_withdrawRequests, i);
+        uint256 _amount = _lockedFunds.get(key);
+        if (_withdrawRequests.get(key) >= _amount) {
+          // release amount
+          // release funds from the lucked amounts
+          _lockedFunds.set(key,_lockedFunds.get(key).sub(_withdrawRequests.get(key)));
+          // reset the widthraw request
+          _withdrawRequests.remove(key);
+          // release the funds
+          _releasedFunds[key] = _releasedFunds[key].add(_amount);
+        }else {
+          // release all funds of the key
+          // the _amount is _lockedFunds.get(key)
+          _releasedFunds[key] = _releasedFunds[key].add(_lockedFunds.get(key));
+          // remove the funds from the lucked amounts
+          _lockedFunds.remove(key);
+          // reset the widthraw request
+          _withdrawRequests.remove(key);
+        }
         
-        _profits[key][_contract] = _profits[key][_contract].add(SafeMath.div(SafeMath.mul(_balances.get(key),_amount), _totalSupply));
+    }
+  }
+
+  function __realTotalWithdrawRequests(int256 _amount) internal returns (uint256) {
+    if (_amount > 0) {
+      return _totalWithdrawRequests;
+    }else {
+      return _totalWithdrawRequests.sub(SafeMath.div(uint256(-_amount) * _totalWithdrawRequests,_totalLockedFunds));
     }
   }
   // ─── Withdraw ────────────────────────────────────────────────────────
@@ -165,7 +234,7 @@ contract Basket {
       _releasedFunds[_account] = _releasedFunds[_account].sub(_amount);
     } else {
       _queuedFunds.set(_account, _releasedFunds[_account].add(_queuedFunds.get(_account)).sub(_amount));
-      _totalQueuedFunds = _totalQueuedFunds.sub(_amount.sub(_releasedFunds[_account]))
+      _totalQueuedFunds = _totalQueuedFunds.sub(_amount.sub(_releasedFunds[_account]));
       _releasedFunds[_account] = 0;
     }
     return __transfer(_amount, _account);
@@ -206,7 +275,7 @@ contract Basket {
   function _reinvestFromProfit(uint256 _amount, address _from) _isAcceptable(_amount) internal returns (bool) {
     _profits[_from] = _profits[_from].sub(_amount);
     _queuedFunds.set(_from, _queuedFunds.get(_from).add(_amount));
-    _totalQueuedFunds = _totalQueuedFunds + _amount
+    _totalQueuedFunds = _totalQueuedFunds + _amount;
     return true;
   }
 
