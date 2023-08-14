@@ -25,7 +25,7 @@ contract Basket {
   uint256 public _exchangeLockedLiquidity; // _totalLiquidity = _availableLiquidity + _exchangeLockedLiquidity + totalProfits
   uint256 public _inContractLockedLiquidity; // _totalLockedFunds = _exchangeLockedLiquidity + _inContractLockedLiquidity
 
-  uint256 public _totalLockedFunds;
+  uint256 private _totalLockedFunds;
   uint256 public _totalWithdrawRequests;
   uint256 public _totalQueuedFunds;
 
@@ -50,9 +50,12 @@ contract Basket {
   //                 |LockedFunds|--Profits-->
   //                 |----<<<----|
 
-  constructor(address owner,address admin, address baseToken, uint256 ownerFund) {
-    _owner = owner;
-    _admin = admin;
+//   constructor(address owner,address admin, address baseToken, uint256 ownerFund) {
+  constructor( address baseToken, uint256 ownerFund) {
+    // _owner = owner;
+    _owner = msg.sender;
+    // _admin = admin;
+    _admin = msg.sender;
     _baseToken = baseToken;
     _ownerFund = ownerFund;
     
@@ -66,6 +69,14 @@ contract Basket {
   // close the basket
   function close() public _onlyOwner() returns (bool) {
     _status = status.closed;
+  }
+  
+  function totalLockedFunds() external view returns(uint256) {
+      return _totalLockedFunds;
+  }
+  
+  function lockedFunds(address _account) external view returns (uint256) {
+      return _lockedFunds.get(_account);
   }
 
   // the owner should approve _owner_fund to this contract, to be accivated, one the basket closes, this ammount will return back to the owner. 
@@ -92,8 +103,8 @@ contract Basket {
     
    
     // ─── Manage Liquidity ────────────────────────────────────────
-
-    int256 _requiredTransfer = int256(_amount + _totalWithdrawRequests+_requirdLiquidity) - int256(_totalQueuedFunds);
+    
+    int256 _requiredTransfer = int256(_amount + _totalWithdrawRequests+_requirdLiquidity) - int256(_totalQueuedFunds) - int256(_inContractLockedLiquidity);
     // the _requiredTransfer should be transfer from exchange to smart Contract.
     if (_requiredTransfer > 0) {
       _requirdLiquidity = _requirdLiquidity.add(uint256(_requiredTransfer));
@@ -108,8 +119,8 @@ contract Basket {
       _inContractLockedLiquidity = _inContractLockedLiquidity.add(_totalQueuedFunds).sub(_amount).sub(_totalWithdrawRequests);
 
     }
-    _totalLockedFunds= _totalLockedFunds.add(_totalQueuedFunds).sub(_totalWithdrawRequests);
-
+    
+    
     // ─── Share Profit And Loss ───────────────────────────────────
     __profit(_amount);
 
@@ -118,7 +129,12 @@ contract Basket {
     
     // ─── Release Requested Funds ─────────────────────────────────
     __releaseFund();
-
+    
+    _requirdLiquidity = _requirdLiquidity + _amount + _totalWithdrawRequests - _totalQueuedFunds;
+    
+    _totalLockedFunds= _totalLockedFunds.add(_totalQueuedFunds).sub(_totalWithdrawRequests);
+    
+    
   }
 
   function _loss(uint256 _amount) internal returns (bool) {}
@@ -148,6 +164,7 @@ contract Basket {
       _lockedFunds.set(key,_lockedFunds.get(key).add(_queuedFunds.get(key)));
       _queuedFunds.remove(key);
     }
+    _totalQueuedFunds = 0;
   }
 
   function __releaseFund() internal {

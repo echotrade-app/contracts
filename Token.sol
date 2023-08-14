@@ -346,7 +346,8 @@ contract Token is ITRC20 {
   // ─── Basket Functions ────────────────────────────────────────────────
 
   function createBasket(address _baseToken,uint256 _ownerFund) public returns (address) {
-    Basket basket = new Basket(msg.sender, address(this), _baseToken,_ownerFund);
+    // Basket basket = new Basket(msg.sender, address(this), _baseToken,_ownerFund);
+    Basket basket;
     _baskets.push(basket);
     (bool _success, ) = _baseToken.call(abi.encodeWithSelector(_transferFromSelector,msg.sender, address(basket), _ownerFund));
     require(_success,"Transfering from _contract failed");
@@ -362,8 +363,6 @@ contract Token is ITRC20 {
     require(_success,"Fetching balance failed");
     return uint256(bytes32(_data));
   }
-
-  fallback() external payable {}
 
   // ─── Modifiers ───────────────────────────────────────────────────────
 
