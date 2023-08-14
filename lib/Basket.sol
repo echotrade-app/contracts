@@ -21,7 +21,7 @@ contract Basket {
   
 
   uint256 public _totalLiquidity;
-  uint256 public _availableLiquidity;
+  uint256 public _requirdLiquidity;
   uint256 public _exchangeLockedLiquidity; // _totalLiquidity = _availableLiquidity + _exchangeLockedLiquidity + totalProfits
   uint256 public _inContractLockedLiquidity; // _totalLockedFunds = _exchangeLockedLiquidity + _inContractLockedLiquidity
 
@@ -38,7 +38,7 @@ contract Basket {
 
   bytes4 private _transferFromSelector;
   bytes4 private _transferSelector;
-  bytes4 private _balanceOf;
+  bytes4 private _balanceOfSelector;
 
   
   // totalLiquidity = availbaleLiquidity + lockedFunds; 
@@ -55,43 +55,35 @@ contract Basket {
     _admin = admin;
     _baseToken = baseToken;
     _ownerFund = ownerFund;
+    
+    _maximumFund = 10000;
 
     _transferFromSelector = bytes4(keccak256("transferFrom(address,address,uint256)"));
     _transferSelector = bytes4(keccak256("transfer(address,uint256)"));
-    _balanceOf = bytes4(keccak256("balanceOf(address)"));
+    _balanceOfSelector = bytes4(keccak256("balanceOf(address)"));
   }
-
-  // returns total liquidity of the contract
-  function totalLiquidity() public returns (uint256) {
-    return availableLiquidity().add(_totalLockedFunds);
-  }
-
-  // returns the amount of available Liquidity of the contract
-  function availableLiquidity() public returns (uint256) {
-    (bool _success,bytes memory _data ) = _baseToken.call(abi.encodeWithSelector(_balanceOf,address(this)));
-    require(_success,"Fetching balance failed");
-    return uint256(bytes32(_data));
-  }
- 
-  // returns the sum of the main funds.
-  function baseLiquidity() external view returns (uint256) {}
-
-  // returns the sum of the queued funds.
-  function queuedLiquidity() external view returns (uint256) {}
 
   // close the basket
-  function close() public returns (bool) {}
-
-  // the owner should approve _owner_fund to this contract, to be accivated, one the basket closes, this ammount will return back to the owner. 
-  function active() public returns (bool) {}
-
-  // the owner or admin can call this function to specify the amount of profit
-  // todo add hash of Positions to this function
-  function profitShare(int256 _amount,bytes memory _history,bytes memory _signature) public _onlyOwner() returns (bool) {
-    
+  function close() public _onlyOwner() returns (bool) {
+    _status = status.closed;
   }
 
-  function _profitShare(uint256 _amount,bytes memory _history,bytes memory _signature) internal _onlyOwner() returns (bool)  {
+  // the owner should approve _owner_fund to this contract, to be accivated, one the basket closes, this ammount will return back to the owner. 
+  function active() public _onlyOwner() returns (bool) {
+      _status = status.active;
+  }
+
+  // the owner or admin can call this function to specify the amount of profit
+  function profitShare(int256 _amount,bytes memory _history,bytes memory _signature) public _onlyOwner() returns (bool) {
+    if (_amount >= 0) {
+      return _profitShare(uint256(_amount));
+    }else {
+      return _loss(uint256(-_amount));
+    }
+    // todo push the records.
+  }
+
+  function _profitShare(uint256 _amount) internal returns (bool)  {
     // Manage Liquidity
     // share profit/loss
     // luck queued funds
@@ -100,22 +92,23 @@ contract Basket {
     
    
     // ─── Manage Liquidity ────────────────────────────────────────
-    int256 _requiredTransfer = int256(_amount + _totalWithdrawRequests) - int256(_totalQueuedFunds);
+
+    int256 _requiredTransfer = int256(_amount + _totalWithdrawRequests+_requirdLiquidity) - int256(_totalQueuedFunds);
     // the _requiredTransfer should be transfer from exchange to smart Contract.
-    // todo approve profit before
     if (_requiredTransfer > 0) {
-      require(_mybalance(_baseToken) >= _availableLiquidity.add(uint256(_requiredTransfer)));
-      _availableLiquidity = _availableLiquidity.add(uint256(_requiredTransfer));
+      _requirdLiquidity = _requirdLiquidity.add(uint256(_requiredTransfer));
+      require(_mybalance(_baseToken) >= _requirdLiquidity,"required more funds for profit sharing");
+    
+      _exchangeLockedLiquidity = _exchangeLockedLiquidity.add(_totalQueuedFunds).sub(uint256(_requiredTransfer));
+      _inContractLockedLiquidity = _inContractLockedLiquidity.add(uint256(_requiredTransfer)).sub(_totalWithdrawRequests);
 
-      _exchangeLockedLiquidity = _exchangeLockedLiquidity.sub(uint256(_requiredTransfer));
+    }else {
+
+      _exchangeLockedLiquidity = _exchangeLockedLiquidity.add(_amount);
+      _inContractLockedLiquidity = _inContractLockedLiquidity.add(_totalQueuedFunds).sub(_amount).sub(_totalWithdrawRequests);
+
     }
-
-    _inContractLockedLiquidity = _inContractLockedLiquidity.add(_totalQueuedFunds).sub(_totalWithdrawRequests);
-
     _totalLockedFunds= _totalLockedFunds.add(_totalQueuedFunds).sub(_totalWithdrawRequests);
-
-    
-    
 
     // ─── Share Profit And Loss ───────────────────────────────────
     __profit(_amount);
@@ -124,11 +117,11 @@ contract Basket {
     __lockQueuedFunds();
     
     // ─── Release Requested Funds ─────────────────────────────────
-
     __releaseFund();
 
   }
 
+  function _loss(uint256 _amount) internal returns (bool) {}
   function __loss(uint256 _amount) internal returns (bool) {
     for (uint i = 0; i < _lockedFunds.size(); ++i) {
       address key = _lockedFunds.getKeyAtIndex(i);
@@ -161,7 +154,7 @@ contract Basket {
     for (uint i = 0; i < _withdrawRequests.size(); ++i) {
         address key = IterableMapping.getKeyAtIndex(_withdrawRequests, i);
         uint256 _amount = _lockedFunds.get(key);
-        if (_withdrawRequests.get(key) >= _amount) {
+        if (_withdrawRequests.get(key) < _amount) {
           // release amount
           // release funds from the lucked amounts
           _lockedFunds.set(key,_lockedFunds.get(key).sub(_withdrawRequests.get(key)));
@@ -189,21 +182,25 @@ contract Basket {
       return _totalWithdrawRequests.sub(SafeMath.div(uint256(-_amount) * _totalWithdrawRequests,_totalLockedFunds));
     }
   }
+
   // ─── Withdraw ────────────────────────────────────────────────────────
 
-  // returns the withdrawable profit for the account.
-  function withdrawableProfit(address _account) public view returns (uint256) {
-    return _profits[_account];
+  function withdrawFundRequest(uint256 _amount) public returns (bool) {
+    return _withdrawFundRequest(_amount,msg.sender);
+  }
+  
+  function withdrawFundRequestFrom(uint256 _amount,address _account) public _onlyAdmin() returns (bool) {
+    return _withdrawFundRequest(_amount,_account);
   }
 
   // return the total withdrawable funds for this account in this basket
   function withdrawableFund(address _account) public view returns (uint256) {
-    return _releasedFunds[_account].add(IterableMapping.get(_queuedFunds, _account));
+    return _releasedFunds[_account].add(_queuedFunds.get(_account));
   }
 
   // return the queued funds for this account in this basket
   function queuedFund(address _account) public view returns (uint256) {
-    return IterableMapping.get(_queuedFunds, _account);
+    return _queuedFunds.get(_account);
   }
 
   function withdrawProfit(uint256 _amount) public returns (bool) {
@@ -240,12 +237,18 @@ contract Basket {
     return __transfer(_amount, _account);
   }
 
+  function _withdrawFundRequest(uint256 _amount,address _account) internal returns (bool) {
+    require(_lockedFunds.get(_account) >= _withdrawRequests.get(_account).add(_amount),"you don't have that much funds");
+    _totalWithdrawRequests = _totalWithdrawRequests.add(_amount);
+    _withdrawRequests.set(_account,_withdrawRequests.get(_account).add(_amount));
+    return true;
+  }
 
   // __transfer is very private function to transfer baseToken from this contract account to _account. 
   function __transfer(uint256 _amount,address _account) internal returns (bool) {
     (bool success,) =_baseToken.call(abi.encodeWithSelector(_transferSelector, _account, _amount));
     require(success,"Transfering from contract failed");
-    _availableLiquidity = _availableLiquidity.sub(_amount);
+    _requirdLiquidity = _requirdLiquidity.sub(_amount);
     return true;
   }
 
@@ -281,7 +284,7 @@ contract Basket {
 
 
   function _mybalance(address _contract) internal returns (uint256) {
-    (bool _success,bytes memory _data ) = _contract.call(abi.encodeWithSelector(_balanceOf,address(this)));
+    (bool _success,bytes memory _data ) = _contract.call(abi.encodeWithSelector(_balanceOfSelector,address(this)));
     require(_success,"Fetching balance failed");
     return uint256(bytes32(_data));
   }
@@ -312,7 +315,7 @@ contract Basket {
     (bool _success, ) = _baseToken.call(abi.encodeWithSelector(_transferFromSelector,_from, _to, _amount));
     require(_success,"Transfering from _contract failed");
     // todo is this section should be here or not? since the _to account is not speicifed by address(this)
-    _availableLiquidity = _availableLiquidity.add(_amount);
+    _requirdLiquidity = _requirdLiquidity.add(_amount);
     _;
   }
 

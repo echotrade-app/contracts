@@ -49,7 +49,6 @@ contract Token is ITRC20 {
     _transferFromSelector = bytes4(keccak256("transferFrom(address,address,uint256)"));
     _transferSelector = bytes4(keccak256("transfer(address,uint256)"));
     _balanceOf = bytes4(keccak256("balanceOf(address)"));
-    
     _mint(msg.sender, 1000*10**_decimals);
   }
 
