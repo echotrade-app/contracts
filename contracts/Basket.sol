@@ -2,8 +2,8 @@
 
 pragma solidity >=0.7.0 <0.9.0;
 
-import "./SafeMath.sol";
-import "./iterable-mapping.sol";
+import "./lib/SafeMath.sol";
+import "./lib/IterableMapping.sol";
 
 contract Basket {
   using SafeMath for uint256;
@@ -82,6 +82,7 @@ contract Basket {
   // the owner should approve _owner_fund to this contract, to be accivated, one the basket closes, this ammount will return back to the owner. 
   function active() public _onlyOwner() returns (bool) {
       _status = status.active;
+      return true;
   }
 
   // the owner or admin can call this function to specify the amount of profit
@@ -95,6 +96,7 @@ contract Basket {
   }
 
   function _profitShare(uint256 _amount) internal returns (bool)  {
+
     // Manage Liquidity
     // share profit/loss
     // luck queued funds
@@ -104,14 +106,14 @@ contract Basket {
    
     // ─── Manage Liquidity ────────────────────────────────────────
     
-    int256 _requiredTransfer = int256(_amount + _totalWithdrawRequests+_requirdLiquidity) - int256(_totalQueuedFunds) - int256(_inContractLockedLiquidity);
+    int256 _requiredTransfer = int256(_amount + _totalWithdrawRequests + _requirdLiquidity) - int256(_totalQueuedFunds) - int256(_inContractLockedLiquidity);
     // the _requiredTransfer should be transfer from exchange to smart Contract.
     if (_requiredTransfer > 0) {
       _requirdLiquidity = _requirdLiquidity.add(uint256(_requiredTransfer));
       require(_mybalance(_baseToken) >= _requirdLiquidity,"required more funds for profit sharing");
     
-      _exchangeLockedLiquidity = _exchangeLockedLiquidity.add(_totalQueuedFunds).sub(uint256(_requiredTransfer));
-      _inContractLockedLiquidity = _inContractLockedLiquidity.add(uint256(_requiredTransfer)).sub(_totalWithdrawRequests);
+      _exchangeLockedLiquidity = _exchangeLockedLiquidity.add(_totalQueuedFunds).add(_amount).sub(uint256(_requiredTransfer));
+      _inContractLockedLiquidity = _inContractLockedLiquidity.add(uint256(_requiredTransfer)).sub(_totalWithdrawRequests).sub(_amount);
 
     }else {
 
@@ -120,21 +122,18 @@ contract Basket {
 
     }
     
+    _requirdLiquidity = _requirdLiquidity + _amount + _totalWithdrawRequests - _totalQueuedFunds;
     
     // ─── Share Profit And Loss ───────────────────────────────────
     __profit(_amount);
-
+     _totalLockedFunds= _totalLockedFunds.add(_totalQueuedFunds).sub(_totalWithdrawRequests);
     // ─── Lock Queued Funds ───────────────────────────────────────
     __lockQueuedFunds();
     
     // ─── Release Requested Funds ─────────────────────────────────
     __releaseFund();
     
-    _requirdLiquidity = _requirdLiquidity + _amount + _totalWithdrawRequests - _totalQueuedFunds;
-    
-    _totalLockedFunds= _totalLockedFunds.add(_totalQueuedFunds).sub(_totalWithdrawRequests);
-    
-    
+    return true;
   }
 
   function _loss(uint256 _amount) internal returns (bool) {}
@@ -149,8 +148,8 @@ contract Basket {
   }
   
   function __profit(uint256 _amount) internal  {
-    for (uint i = 0; i < _lockedFunds.size(); ++i) {
-        address key = _lockedFunds.getKeyAtIndex(i);
+    for (uint i = _lockedFunds.size(); i > 0 ; --i) {
+        address key = _lockedFunds.getKeyAtIndex(i-1);
         if (_lockedFunds.get(key) == 0) {
           continue;
         }
@@ -159,8 +158,8 @@ contract Basket {
   }
 
   function __lockQueuedFunds() internal {
-    for (uint i = 0; i < _queuedFunds.size(); ++i) {
-      address key = _queuedFunds.getKeyAtIndex(i);
+    for (uint i = _queuedFunds.size(); i > 0 ; --i) {
+      address key = _queuedFunds.getKeyAtIndex(i-1);
       _lockedFunds.set(key,_lockedFunds.get(key).add(_queuedFunds.get(key)));
       _queuedFunds.remove(key);
     }
@@ -168,17 +167,16 @@ contract Basket {
   }
 
   function __releaseFund() internal {
-    for (uint i = 0; i < _withdrawRequests.size(); ++i) {
-        address key = IterableMapping.getKeyAtIndex(_withdrawRequests, i);
-        uint256 _amount = _lockedFunds.get(key);
-        if (_withdrawRequests.get(key) < _amount) {
-          // release amount
+    for (uint i = _withdrawRequests.size(); i > 0 ; --i) {
+        address key = IterableMapping.getKeyAtIndex(_withdrawRequests, i-1);
+        if ( _withdrawRequests.get(key) < _lockedFunds.get(key) ) {
+          // realease requested funds
           // release funds from the lucked amounts
           _lockedFunds.set(key,_lockedFunds.get(key).sub(_withdrawRequests.get(key)));
+          // release the funds
+          _releasedFunds[key] = _releasedFunds[key].add(_withdrawRequests.get(key));
           // reset the widthraw request
           _withdrawRequests.remove(key);
-          // release the funds
-          _releasedFunds[key] = _releasedFunds[key].add(_amount);
         }else {
           // release all funds of the key
           // the _amount is _lockedFunds.get(key)
@@ -190,6 +188,7 @@ contract Basket {
         }
         
     }
+    _totalWithdrawRequests = 0;
   }
 
   function __realTotalWithdrawRequests(int256 _amount) internal returns (uint256) {
@@ -217,7 +216,7 @@ contract Basket {
 
   // return the queued funds for this account in this basket
   function queuedFund(address _account) public view returns (uint256) {
-    return _queuedFunds.get(_account);
+    return IterableMapping.get(_queuedFunds,_account);
   }
 
   function withdrawProfit(uint256 _amount) public returns (bool) {
@@ -279,6 +278,7 @@ contract Basket {
     returns (bool) {
     _queuedFunds.set(msg.sender, _queuedFunds.get(msg.sender).add(_amount));
     _totalQueuedFunds = _totalQueuedFunds.add(_amount);
+    return true;
   }
   
   // reinvest from the Profit gained

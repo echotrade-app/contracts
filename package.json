@@ -1,5 +1,9 @@
 {
 	"scripts": {
-		"start:local": "start https://www.tronide.io && remixd -s . -u https://www.tronide.io"
+		"start:local": "start https://www.tronide.io && remixd -s . -u https://www.tronide.io",
+		"test": "remix-tests -c 0.8.7 --optimize true --runs 300 -v 4 ./tests"
+	},
+	"dependencies": {
+		"solc": "^0.8.18"
 	}
 }

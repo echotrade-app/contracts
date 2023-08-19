@@ -3,10 +3,9 @@
 pragma solidity >=0.7.0 <0.9.0;
 
 import "./ITRC20.sol";
+import "./Basket.sol";
 import "./lib/SafeMath.sol";
-import "./lib/iterable-mapping.sol";
-import "./lib/proposal.sol";
-import "./lib/Basket.sol";
+import "./lib/IterableMapping.sol";
 
 contract Token is ITRC20 {
   using SafeMath for uint256;
