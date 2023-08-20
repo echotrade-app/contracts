@@ -4,6 +4,7 @@ pragma solidity >=0.7.0 <0.9.0;
 
 import "./lib/SafeMath.sol";
 import "./lib/IterableMapping.sol";
+import "hardhat/console.sol";
 
 contract Basket {
   using SafeMath for uint256;
@@ -69,6 +70,7 @@ contract Basket {
   // close the basket
   function close() public _onlyOwner() returns (bool) {
     _status = status.closed;
+    return true;
   }
   
   function totalLockedFunds() external view returns(uint256) {
@@ -106,10 +108,10 @@ contract Basket {
    
     // ─── Manage Liquidity ────────────────────────────────────────
     
-    int256 _requiredTransfer = int256(_amount + _totalWithdrawRequests + _requirdLiquidity) - int256(_totalQueuedFunds) - int256(_inContractLockedLiquidity);
+    int256 _requiredTransfer = int256(_amount + _totalWithdrawRequests ) - int256(_totalQueuedFunds) - int256(_inContractLockedLiquidity);
     // the _requiredTransfer should be transfer from exchange to smart Contract.
     if (_requiredTransfer > 0) {
-      _requirdLiquidity = _requirdLiquidity.add(uint256(_requiredTransfer));
+      _requirdLiquidity = _requirdLiquidity.add(uint256(_amount)).add(_totalWithdrawRequests).sub(_totalQueuedFunds);
       require(_mybalance(_baseToken) >= _requirdLiquidity,"required more funds for profit sharing");
     
       _exchangeLockedLiquidity = _exchangeLockedLiquidity.add(_totalQueuedFunds).add(_amount).sub(uint256(_requiredTransfer));
@@ -119,10 +121,9 @@ contract Basket {
 
       _exchangeLockedLiquidity = _exchangeLockedLiquidity.add(_amount);
       _inContractLockedLiquidity = _inContractLockedLiquidity.add(_totalQueuedFunds).sub(_amount).sub(_totalWithdrawRequests);
-
+      _requirdLiquidity = _requirdLiquidity + _amount + _totalWithdrawRequests - _totalQueuedFunds;
     }
     
-    _requirdLiquidity = _requirdLiquidity + _amount + _totalWithdrawRequests - _totalQueuedFunds;
     
     // ─── Share Profit And Loss ───────────────────────────────────
     __profit(_amount);
@@ -134,6 +135,10 @@ contract Basket {
     __releaseFund();
     
     return true;
+  }
+
+  function profitShareRequiredFund(uint256 _amount) public view returns (int256) {
+    return int256(_amount + _totalWithdrawRequests ) - int256(_totalQueuedFunds) - int256(_inContractLockedLiquidity);
   }
 
   function _loss(uint256 _amount) internal returns (bool) {}
@@ -154,6 +159,7 @@ contract Basket {
           continue;
         }
         _profits[key] = _profits[key].add(SafeMath.div(SafeMath.mul(_lockedFunds.get(key) , _amount),_totalLockedFunds));
+        // console.log("shareprofit",key,);
     }
   }
 

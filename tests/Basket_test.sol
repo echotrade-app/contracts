@@ -126,7 +126,6 @@ contract testSuite {
             Assert.ok(false, 'failed unexpected');
         }
         
-        
         try B1.invest(_amount,'') returns (bool success) {
             Assert.ok(success,"it failed");
         }catch  Error(string memory reason) {

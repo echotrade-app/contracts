@@ -5,7 +5,7 @@ pragma solidity >=0.7.0 <0.9.0;
 import "./SafeMath.sol";
 
 struct ProfitShare {
-    uint256 amount
+    uint256 amount;
     
 
 }
