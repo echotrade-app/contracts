@@ -10,32 +10,40 @@ contract Basket {
   using SafeMath for uint256;
   using IterableMapping for IterableMapping.Map;
   
-  enum status {pending, active, closed }
+  enum Status {pending, active, closed }
 
-  address public _owner;
-  status private _status;
-  uint256 public _ownerFund;
-  uint64 private _iteration;
-  uint64 public _maximumFund;
-  address public _baseToken;
-  address public _admin;
-  
+  address public trader;
+  address public admin;
 
-  uint256 public _totalLiquidity;
+  address public baseToken;
+
+  Status public status;
+  uint256 public ownerFund;
+  uint public xid;
+  uint64 public iteration;
+  uint64 public duration;
+  uint public startTime;
+  uint public endTime;
+  uint256 public minFund;
+  uint256 public maximumFund;
+
+  uint256 public ownerSuccessFee;
+  uint256 public adminSuccessFee;
+
   uint256 public _requirdLiquidity;
-  uint256 public _exchangeLockedLiquidity; // _totalLiquidity = _availableLiquidity + _exchangeLockedLiquidity + totalProfits
-  uint256 public _inContractLockedLiquidity; // _totalLockedFunds = _exchangeLockedLiquidity + _inContractLockedLiquidity
+  uint256 public _exchangeLockedLiquidity; // _totalLiquidity = _requirdLiquidity + _exchangeLockedLiquidity + _contractLockedLiquidity
+  uint256 public _inContractLockedLiquidity; // totalLockedFunds = _exchangeLockedLiquidity + _inContractLockedLiquidity
 
-  uint256 private _totalLockedFunds;
-  uint256 public _totalWithdrawRequests;
-  uint256 public _totalQueuedFunds;
+  uint256 public totalLockedFunds;
+  uint256 public totalWithdrawRequests;
+  uint256 public totalQueuedFunds;
 
   IterableMapping.Map private _withdrawRequests;
 
   IterableMapping.Map private _lockedFunds;
   IterableMapping.Map private _queuedFunds;
-  mapping (address => uint256) public _releasedFunds;
-  mapping (address => uint256) public _profits;
+  mapping (address => uint256) public releasedFunds;
+  mapping (address => uint256) public profits;
 
   bytes4 private _transferFromSelector;
   bytes4 private _transferSelector;
@@ -43,24 +51,39 @@ contract Basket {
 
   
   // totalLiquidity = availbaleLiquidity + lockedFunds; 
-  // totalLiquidity = queuedFunds + _releasedFunds + _profits + _lockedFunds
-  // withdrawableFunds = queuedFunds + _releasedFunds
-  // availableLiquidity >= _releasedFunds + _profits + _queuedFunds
+  // totalLiquidity = queuedFunds + releasedFunds + profits + _lockedFunds
+  // withdrawableFunds = queuedFunds + releasedFunds
+  // availableLiquidity >= releasedFunds + profits + _queuedFunds
   //
   // --QueuedFunds-->|---->>>----|--ReleasedFunds-->
   //                 |LockedFunds|--Profits-->
   //                 |----<<<----|
 
 //   constructor(address owner,address admin, address baseToken, uint256 ownerFund) {
-  constructor( address baseToken, uint256 ownerFund) {
-    // _owner = owner;
-    _owner = msg.sender;
-    // _admin = admin;
-    _admin = msg.sender;
-    _baseToken = baseToken;
-    _ownerFund = ownerFund;
+  constructor( 
+    uint _xid,
+    address _baseToken,
+    address _trader,
+    uint256 _ownerFund,
+    uint256 _maximumFund,
+    uint256 _minFund,
+    uint256 _ownerSuccessFee,
+    uint256 _adminSuccessFee
+    ) {
+    trader = _trader;
+    admin = msg.sender;
+
+    baseToken = _baseToken;
     
-    _maximumFund = 10000;
+    status = Status.pending;
+
+    ownerFund = _ownerFund;
+    xid = _xid;
+    maximumFund = _maximumFund;
+    minFund = _minFund;
+    
+    ownerSuccessFee = _ownerSuccessFee;
+    adminSuccessFee = _adminSuccessFee;
 
     _transferFromSelector = bytes4(keccak256("transferFrom(address,address,uint256)"));
     _transferSelector = bytes4(keccak256("transfer(address,uint256)"));
@@ -69,26 +92,19 @@ contract Basket {
 
   // close the basket
   function close() public _onlyOwner() returns (bool) {
-    _status = status.closed;
+    status = Status.closed;
     return true;
-  }
-  
-  function totalLockedFunds() external view returns(uint256) {
-      return _totalLockedFunds;
-  }
-  
-  function lockedFunds(address _account) external view returns (uint256) {
-      return _lockedFunds.get(_account);
   }
 
   // the owner should approve _owner_fund to this contract, to be accivated, one the basket closes, this ammount will return back to the owner. 
-  function active() public _onlyOwner() returns (bool) {
-      _status = status.active;
+  function active() public _onlyOwner() _ownerFundTransfered() returns (bool) {
+      status = Status.active;
+      // todo add Investment for the trader.
       return true;
   }
 
   // the owner or admin can call this function to specify the amount of profit
-  function profitShare(int256 _amount,bytes memory _history,bytes memory _signature) public _onlyOwner() returns (bool) {
+  function profitShare(int256 _amount,bytes memory _history,bytes memory _signature) public _onlyOwner() _profitShareCheck() returns (bool) {
     if (_amount >= 0) {
       return _profitShare(uint256(_amount));
     }else {
@@ -108,26 +124,26 @@ contract Basket {
    
     // ─── Manage Liquidity ────────────────────────────────────────
     
-    int256 _requiredTransfer = int256(_amount + _totalWithdrawRequests ) - int256(_totalQueuedFunds) - int256(_inContractLockedLiquidity);
+    int256 _requiredTransfer = int256(_amount + totalWithdrawRequests ) - int256(totalQueuedFunds) - int256(_inContractLockedLiquidity);
     // the _requiredTransfer should be transfer from exchange to smart Contract.
     if (_requiredTransfer > 0) {
-      _requirdLiquidity = _requirdLiquidity.add(uint256(_amount)).add(_totalWithdrawRequests).sub(_totalQueuedFunds);
-      require(_mybalance(_baseToken) >= _requirdLiquidity,"required more funds for profit sharing");
+      _requirdLiquidity = _requirdLiquidity.add(uint256(_amount)).add(totalWithdrawRequests).sub(totalQueuedFunds);
+      require(_mybalance(baseToken) >= _requirdLiquidity,"required more funds for profit sharing");
     
-      _exchangeLockedLiquidity = _exchangeLockedLiquidity.add(_totalQueuedFunds).add(_amount).sub(uint256(_requiredTransfer));
-      _inContractLockedLiquidity = _inContractLockedLiquidity.add(uint256(_requiredTransfer)).sub(_totalWithdrawRequests).sub(_amount);
+      _exchangeLockedLiquidity = _exchangeLockedLiquidity.add(totalQueuedFunds).add(_amount).sub(uint256(_requiredTransfer));
+      _inContractLockedLiquidity = _inContractLockedLiquidity.add(uint256(_requiredTransfer)).sub(totalWithdrawRequests).sub(_amount);
 
     }else {
 
       _exchangeLockedLiquidity = _exchangeLockedLiquidity.add(_amount);
-      _inContractLockedLiquidity = _inContractLockedLiquidity.add(_totalQueuedFunds).sub(_amount).sub(_totalWithdrawRequests);
-      _requirdLiquidity = _requirdLiquidity + _amount + _totalWithdrawRequests - _totalQueuedFunds;
+      _inContractLockedLiquidity = _inContractLockedLiquidity.add(totalQueuedFunds).sub(_amount).sub(totalWithdrawRequests);
+      _requirdLiquidity = _requirdLiquidity + _amount + totalWithdrawRequests - totalQueuedFunds;
     }
     
     
     // ─── Share Profit And Loss ───────────────────────────────────
     __profit(_amount);
-     _totalLockedFunds= _totalLockedFunds.add(_totalQueuedFunds).sub(_totalWithdrawRequests);
+     totalLockedFunds= totalLockedFunds.add(totalQueuedFunds).sub(totalWithdrawRequests);
     // ─── Lock Queued Funds ───────────────────────────────────────
     __lockQueuedFunds();
     
@@ -138,7 +154,7 @@ contract Basket {
   }
 
   function profitShareRequiredFund(int256 _amount) public view returns (int256) {
-    return _amount >= 0 ? _amount + int256(__realTotalWithdrawRequests(_amount)) - int256(_totalQueuedFunds) - int256(_inContractLockedLiquidity) : int256(__realTotalWithdrawRequests(_amount)) - int256(_totalQueuedFunds) - int256(_inContractLockedLiquidity);
+    return _amount >= 0 ? _amount + int256(__realTotalWithdrawRequests(_amount)) - int256(totalQueuedFunds) - int256(_inContractLockedLiquidity) : int256(__realTotalWithdrawRequests(_amount)) - int256(totalQueuedFunds) - int256(_inContractLockedLiquidity);
   }
 
   function _loss(uint256 _amount) internal returns (bool) {
@@ -150,29 +166,21 @@ contract Basket {
 
     // ─── Manage Liquidity ────────────────────────────────────────
     uint256 _rtotalWithdrawRequest = __realTotalWithdrawRequests(-int256(_amount));
-    console.log("_rtotalWithdrawRequest",_rtotalWithdrawRequest);
-    int256 _requiredTransfer = int256(_rtotalWithdrawRequest ) - int256(_totalQueuedFunds) - int256(_inContractLockedLiquidity);
-    
+    int256 _requiredTransfer = int256(_rtotalWithdrawRequest ) - int256(totalQueuedFunds) - int256(_inContractLockedLiquidity);
     if (_requiredTransfer > 0 ) {
-      _requirdLiquidity = _requirdLiquidity.add(_rtotalWithdrawRequest).sub(_totalQueuedFunds);
-      require(_mybalance(_baseToken) >= _requirdLiquidity,"required more funds for profit sharing");
-
+      _requirdLiquidity = _requirdLiquidity.add(_rtotalWithdrawRequest).sub(totalQueuedFunds);
+      require(_mybalance(baseToken) >= _requirdLiquidity,"required more funds for profit sharing");
       _exchangeLockedLiquidity = _exchangeLockedLiquidity.sub(_amount).sub(uint256(_requiredTransfer));
-      _inContractLockedLiquidity = _inContractLockedLiquidity.add(uint256(_requiredTransfer)).add(_totalQueuedFunds).sub(_rtotalWithdrawRequest);
-
+      _inContractLockedLiquidity = _inContractLockedLiquidity.add(uint256(_requiredTransfer)).add(totalQueuedFunds).sub(_rtotalWithdrawRequest);
     }else {
-
       _exchangeLockedLiquidity = _exchangeLockedLiquidity.sub(_amount);
-      _inContractLockedLiquidity = _inContractLockedLiquidity.add(_totalQueuedFunds).sub(_rtotalWithdrawRequest);
-      _requirdLiquidity = _requirdLiquidity + _rtotalWithdrawRequest - _totalQueuedFunds;
-
+      _inContractLockedLiquidity = _inContractLockedLiquidity.add(totalQueuedFunds).sub(_rtotalWithdrawRequest);
+      _requirdLiquidity = _requirdLiquidity + _rtotalWithdrawRequest - totalQueuedFunds;
     }
 
-   
-  
     // ─── Share Profit And Loss ───────────────────────────────────
     __loss(_amount);
-    _totalLockedFunds = _totalLockedFunds.add(_totalQueuedFunds).sub(_rtotalWithdrawRequest).sub(_amount);
+    totalLockedFunds = totalLockedFunds.add(totalQueuedFunds).sub(_rtotalWithdrawRequest).sub(_amount);
 
     // ─── Lock Queued Funds ───────────────────────────────────────
     __lockQueuedFunds();
@@ -180,6 +188,7 @@ contract Basket {
     // ─── Release Requested Funds ─────────────────────────────────
     __releaseFund();
 
+    return true;
   }
 
   function __loss(uint256 _amount) internal returns (bool) {
@@ -189,8 +198,9 @@ contract Basket {
         _lockedFunds.remove(key);
         continue;
       }
-      _lockedFunds.set(key,_lockedFunds.get(key).sub( SafeMath.div(SafeMath.mul(_lockedFunds.get(key) , _amount),_totalLockedFunds)));
+      _lockedFunds.set(key,_lockedFunds.get(key).sub( SafeMath.div(SafeMath.mul(_lockedFunds.get(key) , _amount),totalLockedFunds)));
     }
+    return true;
   }
   
   function __profit(uint256 _amount) internal  {
@@ -199,7 +209,7 @@ contract Basket {
         if (_lockedFunds.get(key) == 0) {
           continue;
         }
-        _profits[key] = _profits[key].add(SafeMath.div(SafeMath.mul(_lockedFunds.get(key) , _amount),_totalLockedFunds));
+        profits[key] = profits[key].add(SafeMath.div(SafeMath.mul(_lockedFunds.get(key) , _amount),totalLockedFunds));
         // console.log("shareprofit",key,);
     }
   }
@@ -210,7 +220,7 @@ contract Basket {
       _lockedFunds.set(key,_lockedFunds.get(key).add(_queuedFunds.get(key)));
       _queuedFunds.remove(key);
     }
-    _totalQueuedFunds = 0;
+    totalQueuedFunds = 0;
   }
 
   function __releaseFund() internal {
@@ -221,13 +231,13 @@ contract Basket {
           // release funds from the lucked amounts
           _lockedFunds.set(key,_lockedFunds.get(key).sub(_withdrawRequests.get(key)));
           // release the funds
-          _releasedFunds[key] = _releasedFunds[key].add(_withdrawRequests.get(key));
+          releasedFunds[key] = releasedFunds[key].add(_withdrawRequests.get(key));
           // reset the widthraw request
           _withdrawRequests.remove(key);
         }else {
           // release all funds of the key
           // the _amount is _lockedFunds.get(key)
-          _releasedFunds[key] = _releasedFunds[key].add(_lockedFunds.get(key));
+          releasedFunds[key] = releasedFunds[key].add(_lockedFunds.get(key));
           // remove the funds from the lucked amounts
           _lockedFunds.remove(key);
           // reset the widthraw request
@@ -235,35 +245,42 @@ contract Basket {
         }
         
     }
-    _totalWithdrawRequests = 0;
+    totalWithdrawRequests = 0;
   }
 
   function __realTotalWithdrawRequests(int256 _amount) public view returns (uint256) {
     if (_amount > 0) {
-      return _totalWithdrawRequests;
+      return totalWithdrawRequests;
     }else {
-      return _totalWithdrawRequests.sub(SafeMath.div(uint256(-_amount) * _totalWithdrawRequests,_totalLockedFunds));
+      return totalWithdrawRequests.sub(SafeMath.div(uint256(-_amount) * totalWithdrawRequests,totalLockedFunds));
     }
   }
 
-  // ─── Withdraw ────────────────────────────────────────────────────────
+  // ─── Funds ───────────────────────────────────────────────────────────
 
-  function withdrawFundRequest(uint256 _amount) public returns (bool) {
-    return _withdrawFundRequest(_amount,msg.sender);
-  }
-  
-  function withdrawFundRequestFrom(uint256 _amount,address _account) public _onlyAdmin() returns (bool) {
-    return _withdrawFundRequest(_amount,_account);
-  }
-
-  // return the total withdrawable funds for this account in this basket
-  function withdrawableFund(address _account) public view returns (uint256) {
-    return _releasedFunds[_account].add(_queuedFunds.get(_account));
+  function lockedFunds(address _account) external view returns (uint256) {
+    return _lockedFunds.get(_account);
   }
 
   // return the queued funds for this account in this basket
   function queuedFund(address _account) public view returns (uint256) {
     return IterableMapping.get(_queuedFunds,_account);
+  }
+
+  // return the total withdrawable funds for this account in this basket
+  function withdrawableFund(address _account) public view returns (uint256) {
+    return releasedFunds[_account].add(_queuedFunds.get(_account));
+  }
+
+  // ─── Withdraw ────────────────────────────────────────────────────────
+
+  function withdrawFundRequest(uint256 _amount) public returns (bool) {
+    //todo add check for trader to not be able to withdraw the ownerFunds.
+    return _withdrawFundRequest(_amount,msg.sender);
+  }
+  
+  function withdrawFundRequestFrom(uint256 _amount,address _account) public _onlyAdmin() returns (bool) {
+    return _withdrawFundRequest(_amount,_account);
   }
 
   function withdrawProfit(uint256 _amount) public returns (bool) {
@@ -285,31 +302,31 @@ contract Basket {
   }
 
   function _withdrawProfit(uint256 _amount,address _account) internal returns (bool) {
-    _profits[_account] = _profits[_account].sub(_amount);
+    profits[_account] = profits[_account].sub(_amount);
     return __transfer(_amount, _account);
   }
 
   function _withdrawFund(uint256 _amount,address _account) internal returns (bool) {
-    if (_releasedFunds[_account] >= _amount) {
-      _releasedFunds[_account] = _releasedFunds[_account].sub(_amount);
+    if (releasedFunds[_account] >= _amount) {
+      releasedFunds[_account] = releasedFunds[_account].sub(_amount);
     } else {
-      _queuedFunds.set(_account, _releasedFunds[_account].add(_queuedFunds.get(_account)).sub(_amount));
-      _totalQueuedFunds = _totalQueuedFunds.sub(_amount.sub(_releasedFunds[_account]));
-      _releasedFunds[_account] = 0;
+      _queuedFunds.set(_account, releasedFunds[_account].add(_queuedFunds.get(_account)).sub(_amount));
+      totalQueuedFunds = totalQueuedFunds.sub(_amount.sub(releasedFunds[_account]));
+      releasedFunds[_account] = 0;
     }
     return __transfer(_amount, _account);
   }
 
   function _withdrawFundRequest(uint256 _amount,address _account) internal returns (bool) {
     require(_lockedFunds.get(_account) >= _withdrawRequests.get(_account).add(_amount),"you don't have that much funds");
-    _totalWithdrawRequests = _totalWithdrawRequests.add(_amount);
+    totalWithdrawRequests = totalWithdrawRequests.add(_amount);
     _withdrawRequests.set(_account,_withdrawRequests.get(_account).add(_amount));
     return true;
   }
 
   // __transfer is very private function to transfer baseToken from this contract account to _account. 
   function __transfer(uint256 _amount,address _account) internal returns (bool) {
-    (bool success,) =_baseToken.call(abi.encodeWithSelector(_transferSelector, _account, _amount));
+    (bool success,) = baseToken.call(abi.encodeWithSelector(_transferSelector, _account, _amount));
     require(success,"Transfering from contract failed");
     _requirdLiquidity = _requirdLiquidity.sub(_amount);
     return true;
@@ -324,7 +341,7 @@ contract Basket {
     _mustBeTransferred(_amount,msg.sender,address(this)) 
     returns (bool) {
     _queuedFunds.set(msg.sender, _queuedFunds.get(msg.sender).add(_amount));
-    _totalQueuedFunds = _totalQueuedFunds.add(_amount);
+    totalQueuedFunds = totalQueuedFunds.add(_amount);
     return true;
   }
   
@@ -340,9 +357,9 @@ contract Basket {
 
   // _reinvestFromProfit 
   function _reinvestFromProfit(uint256 _amount, address _from) _isAcceptable(_amount) internal returns (bool) {
-    _profits[_from] = _profits[_from].sub(_amount);
+    profits[_from] = profits[_from].sub(_amount);
     _queuedFunds.set(_from, _queuedFunds.get(_from).add(_amount));
-    _totalQueuedFunds = _totalQueuedFunds + _amount;
+    totalQueuedFunds = totalQueuedFunds + _amount;
     return true;
   }
 
@@ -358,25 +375,25 @@ contract Basket {
 
   // specify weather the basket is active or not.
   modifier _isActive() {
-    require(_status == status.active, "Basket is not active yet");
+    require(status == Status.active, "Basket is not active yet");
     _;
   }
   
   // only owners (trader or superadmin) can call the function
   modifier _onlyOwner() {
-    require(msg.sender == _owner || msg.sender == _admin, "Only owner is allowed to call this method");
+    require(msg.sender == trader || msg.sender == admin, "Only owner is allowed to call this method");
     _;
   }
 
   // only superadmin can call the function
   modifier _onlyAdmin() {
-    require(msg.sender == _admin, "Only admin is allowed to call this method");
+    require(msg.sender == admin, "Only admin is allowed to call this method");
     _;
   }
 
   // the _amount should be transfered from the _from account to the _to account.
   modifier _mustBeTransferred(uint256 _amount, address _from,address _to) {
-    (bool _success, ) = _baseToken.call(abi.encodeWithSelector(_transferFromSelector,_from, _to, _amount));
+    (bool _success, ) = baseToken.call(abi.encodeWithSelector(_transferFromSelector,_from, _to, _amount));
     require(_success,"Transfering from _contract failed");
     // todo is this section should be here or not? since the _to account is not speicifed by address(this)
     _requirdLiquidity = _requirdLiquidity.add(_amount);
@@ -391,7 +408,19 @@ contract Basket {
 
   // check that after investing this _amount the total funds is not exceeding the _maximum funds.
   modifier _isAcceptable(uint256 _amount) {
-    require(_totalQueuedFunds.add(_totalLockedFunds).add(_amount).sub(_totalWithdrawRequests) <= _maximumFund,"the Basket is full");
+    require(totalQueuedFunds.add(totalLockedFunds).add(_amount).sub(totalWithdrawRequests) <= maximumFund,"the Basket is full");
+    require(block.timestamp < endTime);
+    _;
+  }
+
+  modifier _ownerFundTransfered() {
+    //todo add condition
+    _;
+  }
+
+  modifier _profitShareCheck() {
+    require( (iteration > 0) || (iteration == 0 && totalQueuedFunds >= minFund),"funds is less than minFund");
+    require( block.timestamp > startTime);
     _;
   }
 
