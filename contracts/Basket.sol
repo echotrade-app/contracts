@@ -137,15 +137,56 @@ contract Basket {
     return true;
   }
 
-  function profitShareRequiredFund(uint256 _amount) public view returns (int256) {
-    return int256(_amount + _totalWithdrawRequests ) - int256(_totalQueuedFunds) - int256(_inContractLockedLiquidity);
+  function profitShareRequiredFund(int256 _amount) public view returns (int256) {
+    return _amount >= 0 ? _amount + int256(__realTotalWithdrawRequests(_amount)) - int256(_totalQueuedFunds) - int256(_inContractLockedLiquidity) : int256(__realTotalWithdrawRequests(_amount)) - int256(_totalQueuedFunds) - int256(_inContractLockedLiquidity);
   }
 
-  function _loss(uint256 _amount) internal returns (bool) {}
+  function _loss(uint256 _amount) internal returns (bool) {
+    require(_amount <= _exchangeLockedLiquidity, "you can not loss more than requidity of your exchange");
+    // Manage Liquidity
+    // share profit/loss
+    // luck queued funds
+    // release requested funds
+
+    // ─── Manage Liquidity ────────────────────────────────────────
+    uint256 _rtotalWithdrawRequest = __realTotalWithdrawRequests(-int256(_amount));
+    console.log("_rtotalWithdrawRequest",_rtotalWithdrawRequest);
+    int256 _requiredTransfer = int256(_rtotalWithdrawRequest ) - int256(_totalQueuedFunds) - int256(_inContractLockedLiquidity);
+    
+    if (_requiredTransfer > 0 ) {
+      _requirdLiquidity = _requirdLiquidity.add(_rtotalWithdrawRequest).sub(_totalQueuedFunds);
+      require(_mybalance(_baseToken) >= _requirdLiquidity,"required more funds for profit sharing");
+
+      _exchangeLockedLiquidity = _exchangeLockedLiquidity.sub(_amount).sub(uint256(_requiredTransfer));
+      _inContractLockedLiquidity = _inContractLockedLiquidity.add(uint256(_requiredTransfer)).add(_totalQueuedFunds).sub(_rtotalWithdrawRequest);
+
+    }else {
+
+      _exchangeLockedLiquidity = _exchangeLockedLiquidity.sub(_amount);
+      _inContractLockedLiquidity = _inContractLockedLiquidity.add(_totalQueuedFunds).sub(_rtotalWithdrawRequest);
+      _requirdLiquidity = _requirdLiquidity + _rtotalWithdrawRequest - _totalQueuedFunds;
+
+    }
+
+   
+  
+    // ─── Share Profit And Loss ───────────────────────────────────
+    __loss(_amount);
+    _totalLockedFunds = _totalLockedFunds.add(_totalQueuedFunds).sub(_rtotalWithdrawRequest).sub(_amount);
+
+    // ─── Lock Queued Funds ───────────────────────────────────────
+    __lockQueuedFunds();
+    
+    // ─── Release Requested Funds ─────────────────────────────────
+    __releaseFund();
+
+  }
+
   function __loss(uint256 _amount) internal returns (bool) {
-    for (uint i = 0; i < _lockedFunds.size(); ++i) {
-      address key = _lockedFunds.getKeyAtIndex(i);
+    for (uint i = _lockedFunds.size(); i > 0 ; --i) {
+      address key = _lockedFunds.getKeyAtIndex(i-1);
       if (_lockedFunds.get(key) == 0) {
+        _lockedFunds.remove(key);
         continue;
       }
       _lockedFunds.set(key,_lockedFunds.get(key).sub( SafeMath.div(SafeMath.mul(_lockedFunds.get(key) , _amount),_totalLockedFunds)));
@@ -197,7 +238,7 @@ contract Basket {
     _totalWithdrawRequests = 0;
   }
 
-  function __realTotalWithdrawRequests(int256 _amount) internal returns (uint256) {
+  function __realTotalWithdrawRequests(int256 _amount) public view returns (uint256) {
     if (_amount > 0) {
       return _totalWithdrawRequests;
     }else {
