@@ -281,6 +281,7 @@ describe("Basket", async ()=> {
     await expect(USDT.connect(Inv1).approve(await Basket.getAddress(),100)).not.to.be.reverted;
     await expect(Basket.connect(Inv1).invest(100, ethers.encodeBytes32String(""))).to.be.reverted;
 
+
     console.log(await Basket._profitShares(0));
     console.log(await Basket._profitShares(1));
     console.log(await Basket._profitShares(2));

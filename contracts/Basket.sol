@@ -122,6 +122,16 @@ contract Basket {
   // todo define close process.
   function close() public _onlyOwner() returns (bool) {
     status = Status.closed;
+    require(_exchangeLockedLiquidity == 0, "requires all funds to be transfered to the Basket");
+    require(_mybalance(baseToken) >= totalLockedFunds + _requirdLiquidity, "isufficent liquidity to close the Basket");
+    // release all Lockedfunds 
+    // release all queued funds
+    // 
+    // inExchangeLiquidity = 0
+    // inContractLiquidity = 0
+    // realase TraderFunds
+    // transfer AdminShare to the Admin
+    
     emit Close();
     return true;
   }
@@ -156,6 +166,11 @@ contract Basket {
     _exchangeLockedLiquidity = _exchangeLockedLiquidity.sub(_amount);
     emit TransferFundFromExchange(_amount);
     return true;
+  }
+
+  function adminShare() public _onlyAdminOrAssitant() returns (bool){
+
+    
   }
 
   // ─── Profit Sharing ──────────────────────────────────────────────────
