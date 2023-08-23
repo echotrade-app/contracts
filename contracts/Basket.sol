@@ -2,9 +2,9 @@
 
 pragma solidity >=0.7.0 <0.9.0;
 
-import "./lib/SafeMath.sol";
-import "./lib/IterableMapping.sol";
-import "hardhat/console.sol";
+import "./SafeMath.sol";
+import "./IterableMapping.sol";
+// import "hardhat/console.sol";
 
 contract Basket {
   using SafeMath for uint256;
@@ -168,9 +168,9 @@ contract Basket {
     return true;
   }
 
-  function adminShare() public _onlyAdminOrAssitant() returns (bool){
+  function adminShareProfit() public _onlyAdminOrAssitant() returns (bool) {
+    return false;
 
-    
   }
 
   // ─── Profit Sharing ──────────────────────────────────────────────────
