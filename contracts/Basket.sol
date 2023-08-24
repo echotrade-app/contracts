@@ -195,6 +195,10 @@ contract Basket {
     emit ProfitShare(_amount);
     return success;
   }
+  
+  function profitShare_signatureData(uint256 _index, uint256 _amount, bytes32 _history, uint256 _exp) public pure returns (bytes32) {
+    return keccak256(abi.encodePacked(_index, _amount, _history, _exp));
+  }
 
   function _profitShare(uint256 _amount) internal returns (bool)  {
 
@@ -456,6 +460,10 @@ contract Basket {
     totalQueuedFunds = totalQueuedFunds.add(_amount);
     emit Invest(msg.sender, _amount);
     return true;
+  }
+
+  function invest_signatureData(address _from, uint256 _amount, uint256 _exp) public pure returns (bytes32) {
+    return keccak256(abi.encodePacked(_from, _amount, _exp));
   }
   
   // reinvest from the Profit gained
