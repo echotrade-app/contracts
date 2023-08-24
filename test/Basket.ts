@@ -11,7 +11,7 @@ import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
 describe("Basket", async ()=> {
   let Trader:HardhatEthersSigner, Inv1:HardhatEthersSigner, Inv2:HardhatEthersSigner, Inv3:HardhatEthersSigner, Inv4 :HardhatEthersSigner;
 
-  it("Scenario 1",async ()=> {
+  it("Scenario 1 - Investment with Profit and loss",async ()=> {
     [Trader, Inv1, Inv2, Inv3, Inv4] = await ethers.getSigners();
     let now = Math.floor(Date.now()/1000);
     let USDT = await CreateUSDT();
@@ -33,11 +33,11 @@ describe("Basket", async ()=> {
     await time.increaseTo(now+3*3600);
     await expect(Basket.connect(Trader).profitShare(0, ethers.encodeBytes32String(""), ethers.encodeBytes32String(""))).not.to.be.reverted;
 
-    await expect(await Basket._inContractLockedLiquidity()).to.equal(1600);
-    await expect(await Basket._exchangeLockedLiquidity()).to.equal(0);
+    await expect(await Basket.contractLockedLiquidity()).to.equal(1600);
+    await expect(await Basket.exchangeLockedLiquidity()).to.equal(0);
     await expect(await Basket.totalQueuedFunds()).to.equal(0);
     await expect(await Basket.totalWithdrawRequests()).to.equal(0);
-    await expect(await Basket._requirdLiquidity()).to.equal(0);
+    await expect(await Basket.requirdLiquidity()).to.equal(0);
 
     await expect(await Basket.lockedFunds(Inv1)).to.equal(100);
     await expect(await Basket.lockedFunds(Inv2)).to.equal(500);
@@ -50,21 +50,21 @@ describe("Basket", async ()=> {
     // invest 200
     await _invest(Inv4, 200);
 
-    await expect(await Basket._inContractLockedLiquidity()).to.equal(1600); // total liquidity
-    await expect(await Basket._exchangeLockedLiquidity()).to.equal(0); // no profit or balance share
+    await expect(await Basket.contractLockedLiquidity()).to.equal(1600); // total liquidity
+    await expect(await Basket.exchangeLockedLiquidity()).to.equal(0); // no profit or balance share
     await expect(await Basket.totalQueuedFunds()).to.equal(200); // Inv4 invested 200
     await expect(await Basket.totalWithdrawRequests()).to.equal(300); // Inv3 requested 300
-    await expect(await Basket._requirdLiquidity()).to.equal(200); // for paying the queued funds
+    await expect(await Basket.requirdLiquidity()).to.equal(200); // for paying the queued funds
 
     // ─── Profit Share 1 ──────────────────────────────────────────
     await expect(Basket.connect(Trader).profitShare(100, ethers.encodeBytes32String(""), ethers.encodeBytes32String(""))).not.to.be.reverted;
 
-    await expect(await Basket._inContractLockedLiquidity()).to.equal(1600 - 300 + 200 - 100);
-    await expect(await Basket._exchangeLockedLiquidity()).to.equal(100);
+    await expect(await Basket.contractLockedLiquidity()).to.equal(1600 - 300 + 200 - 100);
+    await expect(await Basket.exchangeLockedLiquidity()).to.equal(100);
     // total liquidity 1700
     await expect(await Basket.totalQueuedFunds()).to.equal(0);
     await expect(await Basket.totalWithdrawRequests()).to.equal(0);
-    await expect(await Basket._requirdLiquidity()).to.equal(400);
+    await expect(await Basket.requirdLiquidity()).to.equal(400);
 
     await expect(await Basket.lockedFunds(Inv1)).to.equal(100);
     await expect(await Basket.lockedFunds(Inv2)).to.equal(500);
@@ -80,18 +80,18 @@ describe("Basket", async ()=> {
     await expect(Basket.connect(Inv3)["withdrawFund(uint256)"](300)).not.to.be.reverted;
     await expect(Basket.connect(Inv3)["withdrawProfit(uint256)"](Math.floor((1000 / 1600) * (100*0.8)))).not.to.be.reverted;
 
-    await expect(await Basket._requirdLiquidity()).to.equal(400 - 300 - Math.floor((1000 / 1600) * (100*0.8)));
+    await expect(await Basket.requirdLiquidity()).to.equal(400 - 300 - Math.floor((1000 / 1600) * (100*0.8)));
 
     // ─── Profit Share 2 ──────────────────────────────────────────
 
     await expect(Basket.connect(Trader).profitShare(500, ethers.encodeBytes32String(""), ethers.encodeBytes32String(""))).not.to.be.reverted;
     // console.log(await Basket.connect(Trader).profitShare(500,ethers.encodeBytes32String(""),ethers.encodeBytes32String("")));
 
-    await expect(await Basket._inContractLockedLiquidity()).to.equal(1600 - 300 + 200 - 100 - 500);
-    await expect(await Basket._exchangeLockedLiquidity()).to.equal(100 + 500);
+    await expect(await Basket.contractLockedLiquidity()).to.equal(1600 - 300 + 200 - 100 - 500);
+    await expect(await Basket.exchangeLockedLiquidity()).to.equal(100 + 500);
     await expect(await Basket.totalQueuedFunds()).to.equal(0);
     await expect(await Basket.totalWithdrawRequests()).to.equal(0);
-    await expect(await Basket._requirdLiquidity()).to.equal(400 - 300 - Math.floor((1000 / 1600) * (100*0.8)) + 500);
+    await expect(await Basket.requirdLiquidity()).to.equal(400 - 300 - Math.floor((1000 / 1600) * (100*0.8)) + 500);
 
     await expect(await Basket.lockedFunds(Inv1)).to.equal(100);
     await expect(await Basket.lockedFunds(Inv2)).to.equal(500);
@@ -108,9 +108,9 @@ describe("Basket", async ()=> {
     await expect(await Basket.totalWithdrawRequests()).to.equal(500);
 
     // ─── Profit Share 3 ──────────────────────────────────────────
-    // console.log("_requirdLiquidity",await Basket._requirdLiquidity());
-    // console.log("_ContractFunds",await Basket._inContractLockedLiquidity());
-    // console.log("_ExchangeFunds",await Basket._exchangeLockedLiquidity());
+    // console.log("requirdLiquidity",await Basket.requirdLiquidity());
+    // console.log("_ContractFunds",await Basket.contractLockedLiquidity());
+    // console.log("_ExchangeFunds",await Basket.exchangeLockedLiquidity());
     // console.log("_TotalFunds",await Basket.totalLockedFunds());
     // console.log("_TotalWidrawRequestFunds",await Basket.totalWithdrawRequests());
     // console.log("totalQueuedFunds",await Basket.totalQueuedFunds());
@@ -124,11 +124,11 @@ describe("Basket", async ()=> {
     await expect(USDT.connect(Trader).transfer(await Basket.getAddress(), RequiredFunds)).not.to.be.reverted;
     await expect(Basket.connect(Trader).profitShare(500, ethers.encodeBytes32String(""), ethers.encodeBytes32String(""))).not.to.be.reverted;
 
-    await expect(await Basket._inContractLockedLiquidity()).to.equal(1600 - 300 + 200 - 100 - 500 - 500 - 500 + Number(RequiredFunds));
-    await expect(await Basket._exchangeLockedLiquidity()).to.equal(100 + 500 + 500 - Number(RequiredFunds));
+    await expect(await Basket.contractLockedLiquidity()).to.equal(1600 - 300 + 200 - 100 - 500 - 500 - 500 + Number(RequiredFunds));
+    await expect(await Basket.exchangeLockedLiquidity()).to.equal(100 + 500 + 500 - Number(RequiredFunds));
     await expect(await Basket.totalQueuedFunds()).to.equal(0);
     await expect(await Basket.totalWithdrawRequests()).to.equal(0);
-    await expect(await Basket._requirdLiquidity()).to.equal(400 - 300 - Math.floor((1000 / 1600) * (100*0.8)) + 500 + 500 + 500);
+    await expect(await Basket.requirdLiquidity()).to.equal(400 - 300 - Math.floor((1000 / 1600) * (100*0.8)) + 500 + 500 + 500);
 
     await expect(await Basket.lockedFunds(Inv1)).to.equal(100);
     await expect(await Basket.lockedFunds(Inv2)).to.equal(500);
@@ -151,13 +151,13 @@ describe("Basket", async ()=> {
     await expect(USDT.connect(Trader).transfer(await Basket.getAddress(), RequiredFunds2)).not.to.be.reverted;
     await expect(Basket.connect(Trader).profitShare(700, ethers.encodeBytes32String(""), ethers.encodeBytes32String(""))).not.to.be.reverted;
 
-    console.log("_requirdLiquidity", await Basket._requirdLiquidity());
+    console.log("requirdLiquidity", await Basket.requirdLiquidity());
 
-    await expect(await Basket._inContractLockedLiquidity()).to.equal(1600 - 300 + 200 - 100 - 500 - 500 - 500 + Number(RequiredFunds) - 700 + Number(RequiredFunds2));
-    await expect(await Basket._exchangeLockedLiquidity()).to.equal(100 + 500 + 500 - Number(RequiredFunds) + 700 - Number(RequiredFunds2));
+    await expect(await Basket.contractLockedLiquidity()).to.equal(1600 - 300 + 200 - 100 - 500 - 500 - 500 + Number(RequiredFunds) - 700 + Number(RequiredFunds2));
+    await expect(await Basket.exchangeLockedLiquidity()).to.equal(100 + 500 + 500 - Number(RequiredFunds) + 700 - Number(RequiredFunds2));
     await expect(await Basket.totalQueuedFunds()).to.equal(0);
     await expect(await Basket.totalWithdrawRequests()).to.equal(0);
-    await expect(await Basket._requirdLiquidity()).to.equal(400 - 300 - Math.floor((1000 / 1600) * (100*0.8)) + 500 + 500 + 500 + 700);
+    await expect(await Basket.requirdLiquidity()).to.equal(400 - 300 - Math.floor((1000 / 1600) * (100*0.8)) + 500 + 500 + 500 + 700);
 
     await expect(await Basket.lockedFunds(Inv1)).to.equal(100);
     await expect(await Basket.lockedFunds(Inv2)).to.equal(500);
@@ -181,11 +181,11 @@ describe("Basket", async ()=> {
     await expect(USDT.connect(Trader).transfer(await Basket.getAddress(), RequiredFunds3)).not.to.be.reverted;
     await expect(Basket.connect(Trader).profitShare(0, ethers.encodeBytes32String(""), ethers.encodeBytes32String(""))).not.to.be.reverted;
 
-    await expect(await Basket._inContractLockedLiquidity()).to.equal(1600 - 300 + 200 - 100 - 500 - 500 - 500 + Number(RequiredFunds) - 700 + Number(RequiredFunds2) - 200 + Number(RequiredFunds3));
-    await expect(await Basket._exchangeLockedLiquidity()).to.equal(100 + 500 + 500 - Number(RequiredFunds) + 700 - Number(RequiredFunds2) - Number(RequiredFunds3));
+    await expect(await Basket.contractLockedLiquidity()).to.equal(1600 - 300 + 200 - 100 - 500 - 500 - 500 + Number(RequiredFunds) - 700 + Number(RequiredFunds2) - 200 + Number(RequiredFunds3));
+    await expect(await Basket.exchangeLockedLiquidity()).to.equal(100 + 500 + 500 - Number(RequiredFunds) + 700 - Number(RequiredFunds2) - Number(RequiredFunds3));
     await expect(await Basket.totalQueuedFunds()).to.equal(0);
     await expect(await Basket.totalWithdrawRequests()).to.equal(0);
-    await expect(await Basket._requirdLiquidity()).to.equal(400 - 300 - Math.floor((1000 / 1600) * (100*0.8)) + 500 + 500 + 500 + 700 + 200);
+    await expect(await Basket.requirdLiquidity()).to.equal(400 - 300 - Math.floor((1000 / 1600) * (100*0.8)) + 500 + 500 + 500 + 700 + 200);
 
     await expect(await Basket.lockedFunds(Inv1)).to.equal(100);
     await expect(await Basket.lockedFunds(Inv2)).to.equal(500);
@@ -205,11 +205,11 @@ describe("Basket", async ()=> {
     // lost 100
     await expect(Basket.connect(Trader).profitShare(-100, ethers.encodeBytes32String(""), ethers.encodeBytes32String(""))).not.to.be.reverted;
 
-    await expect(await Basket._inContractLockedLiquidity()).to.equal(1600 - 300 + 200 - 100 - 500 - 500 - 500 + Number(RequiredFunds) - 700 + Number(RequiredFunds2) - 200 + Number(RequiredFunds3));
-    await expect(await Basket._exchangeLockedLiquidity()).to.equal(100 + 500 + 500 - Number(RequiredFunds) + 700 - Number(RequiredFunds2) - Number(RequiredFunds3)-100);
+    await expect(await Basket.contractLockedLiquidity()).to.equal(1600 - 300 + 200 - 100 - 500 - 500 - 500 + Number(RequiredFunds) - 700 + Number(RequiredFunds2) - 200 + Number(RequiredFunds3));
+    await expect(await Basket.exchangeLockedLiquidity()).to.equal(100 + 500 + 500 - Number(RequiredFunds) + 700 - Number(RequiredFunds2) - Number(RequiredFunds3)-100);
     await expect(await Basket.totalQueuedFunds()).to.equal(0);
     await expect(await Basket.totalWithdrawRequests()).to.equal(0);
-    await expect(await Basket._requirdLiquidity()).to.equal(400 - 300 - Math.floor((1000 / 1600) * (100*0.8)) + 500 + 500 + 500 + 700 + 200-300);
+    await expect(await Basket.requirdLiquidity()).to.equal(400 - 300 - Math.floor((1000 / 1600) * (100*0.8)) + 500 + 500 + 500 + 700 + 200-300);
 
     await expect(await Basket.lockedFunds(Inv1)).to.equal(100-Math.floor((100*100)/800));
     await expect(await Basket.lockedFunds(Inv2)).to.equal(500-Math.floor((500*100)/800));
@@ -225,9 +225,9 @@ describe("Basket", async ()=> {
     // Inv2 withdraw all of his money
     await expect(Basket.connect(Inv2).unlockFundRequest(500-Math.floor((500*100)/800))).not.to.be.reverted;
 
-    console.log("_requirdLiquidity", await Basket._requirdLiquidity());
-    console.log("_ContractFunds", await Basket._inContractLockedLiquidity());
-    console.log("_ExchangeFunds", await Basket._exchangeLockedLiquidity());
+    console.log("requirdLiquidity", await Basket.requirdLiquidity());
+    console.log("_ContractFunds", await Basket.contractLockedLiquidity());
+    console.log("_ExchangeFunds", await Basket.exchangeLockedLiquidity());
     console.log("_TotalFunds", await Basket.totalLockedFunds());
     console.log("_TotalWithdrawRequestFunds", await Basket.totalWithdrawRequests());
     console.log("totalQueuedFunds", await Basket.totalQueuedFunds());
@@ -236,10 +236,10 @@ describe("Basket", async ()=> {
     console.log("Inv-3 Profit:", await Basket.profits(Inv3), "\t Fund:", await Basket.lockedFunds(Inv3));
     console.log("Inv-4 Profit:", await Basket.profits(Inv4), "\t Fund:", await Basket.lockedFunds(Inv4));
 
-    // console.log("total ex funds",await Basket._exchangeLockedLiquidity());
-    // _requirdLiquidity = 2138
+    // console.log("total ex funds",await Basket.exchangeLockedLiquidity());
+    // requirdLiquidity = 2138
     // _ContractFunds = 0
-    // _exchangeLockedLiquidity = 700
+    // exchangeLockedLiquidity = 700
     // _TotalFunds  = 700
     // _TotalWithdrawRequestFunds = 438
     // totalQueuedFunds = 0
@@ -259,11 +259,11 @@ describe("Basket", async ()=> {
     await expect(Basket.connect(Trader).profitShare(-200, ethers.encodeBytes32String(""), ethers.encodeBytes32String(""))).not.to.be.reverted;
 
 
-    await expect(await Basket._inContractLockedLiquidity()).to.equal(Number(RequiredFunds4) -438 + Math.floor((438*200)/700) ); // 438 withdraw request of user 2
-    await expect(await Basket._exchangeLockedLiquidity()).to.equal(700 - 200 - Number(RequiredFunds4) ); // 200 loss
+    await expect(await Basket.contractLockedLiquidity()).to.equal(Number(RequiredFunds4) -438 + Math.floor((438*200)/700) ); // 438 withdraw request of user 2
+    await expect(await Basket.exchangeLockedLiquidity()).to.equal(700 - 200 - Number(RequiredFunds4) ); // 200 loss
     await expect(await Basket.totalQueuedFunds()).to.equal(0);
     await expect(await Basket.totalWithdrawRequests()).to.equal(0);
-    await expect(await Basket._requirdLiquidity()).to.equal(2150 + 438 - Math.floor((438*200)/700) ); // 2150 previous required liquidation
+    await expect(await Basket.requirdLiquidity()).to.equal(2150 + 438 - Math.floor((438*200)/700) ); // 2150 previous required liquidation
 
     await expect(await Basket.lockedFunds(Inv1)).to.equal(100-Math.floor((100*100)/800) - Math.floor(((100-Math.floor((100*100)/800))*200)/700));
     await expect(await Basket.lockedFunds(Inv2)).to.equal(0);
@@ -307,7 +307,143 @@ describe("Basket", async ()=> {
     await expect(await Basket.profits(Trader)).to.equal(270);
   });
 
-  it("Scenario 2", async () => {
+  it ("Scenario 2 - close Basket and AdminProfitShares",async ()=>{
+    let Assistant:HardhatEthersSigner;
+    [Trader,Assistant, Inv1, Inv2, Inv3, Inv4] = await ethers.getSigners();
+    let basket = await ethers.getContractFactory("Basket");
+    let now = Math.floor(Date.now()/1000);
+    let USDT = await CreateUSDT();
+    now = now+50*3600
+    let Basket = await basket.deploy(100, USDT, Trader,Assistant, 0, 100000, 0, 1500, 500,now,now+100*3600 );
+    time.increaseTo(now);
+    await time.increaseTo(now);
+    async function _invest(Investor: any, amount: number) {
+      await expect(USDT.connect(Investor).approve(await Basket.getAddress(), amount)).not.to.be.reverted;
+      await expect(Basket.connect(Investor).invest(amount, ethers.encodeBytes32String(""))).not.to.be.reverted;
+    }
+    await expect(Basket.connect(Trader).active()).not.to.be.reverted;
+    await expect(USDT.connect(Trader).transfer(Assistant,10000)).not.to.be.reverted;
+    await _invest(Inv1, 100);
+    await _invest(Inv2, 500);
+    await _invest(Inv3, 1000);
+    expect(await Basket.totalQueuedFunds()).to.equal(1600);
+
+    // ─── Profit Share 0 ──────────────────────────────────────────
+    // @ start Time
+    await time.increaseTo(now+3*3600);
+    await expect(Basket.connect(Trader).profitShare(0, ethers.encodeBytes32String(""), ethers.encodeBytes32String(""))).not.to.be.reverted;
+
+    await expect(await Basket.contractLockedLiquidity()).to.equal(1600);
+    await expect(await Basket.exchangeLockedLiquidity()).to.equal(0);
+    await expect(await Basket.totalQueuedFunds()).to.equal(0);
+    await expect(await Basket.totalWithdrawRequests()).to.equal(0);
+    await expect(await Basket.requirdLiquidity()).to.equal(0);
+
+    await expect(await Basket.lockedFunds(Inv1)).to.equal(100);
+    await expect(await Basket.lockedFunds(Inv2)).to.equal(500);
+    await expect(await Basket.lockedFunds(Inv3)).to.equal(1000);
+    await expect(await Basket.totalLockedFunds()).to.equal(1600);
+
+    // withdraw request 300
+    await expect(await Basket.connect(Inv3).unlockFundRequest(300));
+
+    // invest 200
+    await _invest(Inv4, 200);
+
+    await expect(await Basket.contractLockedLiquidity()).to.equal(1600); // total liquidity
+    await expect(await Basket.exchangeLockedLiquidity()).to.equal(0); // no profit or balance share
+    await expect(await Basket.totalQueuedFunds()).to.equal(200); // Inv4 invested 200
+    await expect(await Basket.totalWithdrawRequests()).to.equal(300); // Inv3 requested 300
+    await expect(await Basket.requirdLiquidity()).to.equal(200); // for paying the queued funds
+
+    // ─── Profit Share 1 ──────────────────────────────────────────
+    await expect(Basket.connect(Trader).profitShare(100, ethers.encodeBytes32String(""), ethers.encodeBytes32String(""))).not.to.be.reverted;
+
+    await expect(await Basket.contractLockedLiquidity()).to.equal(1600 - 300 + 200 - 100);
+    await expect(await Basket.exchangeLockedLiquidity()).to.equal(100);
+    // total liquidity 1700
+    await expect(await Basket.totalQueuedFunds()).to.equal(0);
+    await expect(await Basket.totalWithdrawRequests()).to.equal(0);
+    await expect(await Basket.requirdLiquidity()).to.equal(400);
+
+    await expect(await Basket.lockedFunds(Inv1)).to.equal(100);
+    await expect(await Basket.lockedFunds(Inv2)).to.equal(500);
+    await expect(await Basket.lockedFunds(Inv3)).to.equal(700);
+    await expect(await Basket.lockedFunds(Inv4)).to.equal(200);
+    await expect(await Basket.totalLockedFunds()).to.equal(1500);
+
+    await expect(await Basket.profits(Inv1)).to.equal(Math.floor((100 / 1600) * (100*0.8)));
+    await expect(await Basket.profits(Inv2)).to.equal(Math.floor((500 / 1600) * (100*0.8)));
+    await expect(await Basket.profits(Inv3)).to.equal(Math.floor((1000 / 1600) * (100*0.8)));
+    await expect(await Basket.profits(Inv4)).to.equal(0);
+
+    await expect(Basket.connect(Inv3)["withdrawFund(uint256)"](300)).not.to.be.reverted;
+    await expect(Basket.connect(Inv3)["withdrawProfit(uint256)"](Math.floor((1000 / 1600) * (100*0.8)))).not.to.be.reverted;
+
+    await expect(await Basket.requirdLiquidity()).to.equal(400 - 300 - Math.floor((1000 / 1600) * (100*0.8)));
+
+    // Transfer Fund
+    await expect(Basket.connect(Trader).transferFundToExchange(Assistant,400)).not.to.be.reverted;
+    await expect(await Basket.contractLockedLiquidity()).to.equal(1000);
+    await expect(await Basket.exchangeLockedLiquidity()).to.equal(500);
+    
+    await expect(USDT.connect(Assistant).transfer(await Basket.getAddress(),500)).not.to.be.reverted;
+    await expect(Basket.connect(Trader).transferFundFromExchange(500)).not.to.be.reverted;
+
+    await expect(await Basket.contractLockedLiquidity()).to.equal(1500);
+    await expect(await Basket.exchangeLockedLiquidity()).to.equal(0);
+    
+    let oldBalance = await USDT.balanceOf(await Basket.admin());
+    await expect(await Basket.connect(Assistant).adminShareProfit()).not.to.be.reverted;
+    await expect(await USDT.balanceOf(await Basket.admin()) - oldBalance).to.equal(5);
+
+    console.log("Inv-1 Profit:", await Basket.profits(Inv1), "\t Fund:", await Basket.lockedFunds(Inv1));
+    console.log("Inv-2 Profit:", await Basket.profits(Inv2), "\t Fund:", await Basket.lockedFunds(Inv2));
+    console.log("Inv-3 Profit:", await Basket.profits(Inv3), "\t Fund:", await Basket.lockedFunds(Inv3));
+    console.log("Inv-4 Profit:", await Basket.profits(Inv4), "\t Fund:", await Basket.lockedFunds(Inv4));
+    
+    await _invest(Inv2,200);
+    await _invest(Inv3,300);
+
+    await expect(Basket.connect(Trader).close()).not.to.be.reverted;
+    
+    await expect(await Basket.lockedFunds(Inv1)).to.equal(0);
+    await expect(await Basket.lockedFunds(Inv2)).to.equal(0);
+    await expect(await Basket.lockedFunds(Inv3)).to.equal(0);
+    await expect(await Basket.lockedFunds(Inv4)).to.equal(0);
+    await expect(await Basket.totalLockedFunds()).to.equal(0);
+    await expect(await Basket.totalQueuedFunds()).to.equal(0);
+    
+    await expect(await Basket.releasedFunds(Inv1)).to.equal(100);
+    await expect(await Basket.releasedFunds(Inv2)).to.equal(500+200);
+    await expect(await Basket.releasedFunds(Inv3)).to.equal(700+300);
+    await expect(await Basket.releasedFunds(Inv4)).to.equal(200);
+
+    // try withdraw reminders funds.
+    await expect(USDT.connect(Inv4).transfer(await Basket.getAddress(),1000)).not.to.be.reverted;
+    await expect(Basket.connect(Assistant).withdrawReminders(await USDT.getAddress())).not.to.be.reverted;
+
+    await expect(Basket.connect(Inv1)["withdrawFund(uint256)"](100)).not.to.be.reverted;
+    await expect(Basket.connect(Inv2)["withdrawFund(uint256)"](700)).not.to.be.reverted;
+    await expect(Basket.connect(Inv3)["withdrawFund(uint256)"](1000)).not.to.be.reverted;
+    await expect(Basket.connect(Inv4)["withdrawFund(uint256)"](200)).not.to.be.reverted;
+    
+    await expect(Basket.connect(Trader)["withdrawProfit(uint256)"](await Basket.profits(Trader))).not.to.be.reverted;
+    await expect(Basket.connect(Inv1)["withdrawProfit(uint256)"](await Basket.profits(Inv1))).not.to.be.reverted;
+    await expect(Basket.connect(Inv2)["withdrawProfit(uint256)"](await Basket.profits(Inv2))).not.to.be.reverted;
+    await expect(Basket.connect(Inv3)["withdrawProfit(uint256)"](await Basket.profits(Inv3))).not.to.be.reverted;
+    await expect(Basket.connect(Inv4)["withdrawProfit(uint256)"](await Basket.profits(Inv4))).not.to.be.reverted;
+
+
+    console.log("requirdLiquidity" ,await Basket.requirdLiquidity());
+    console.log("basketBalance" ,await USDT.balanceOf(await Basket.getAddress()));
+    console.log("contractLockedLiquidity" ,await Basket.contractLockedLiquidity());
+    console.log("exchangeLockedLiquidity" ,await Basket.exchangeLockedLiquidity());
+    console.log("adminShare" ,await Basket.adminShare());
+
+  });
+
+  it("Scenario 3 - NonZero Trader Fund", async () => {
     [Trader, Inv1, Inv2, Inv3, Inv4] = await ethers.getSigners();
     let basket = await ethers.getContractFactory("Basket");
     let now = Math.floor(Date.now()/1000);
@@ -334,7 +470,7 @@ describe("Basket", async ()=> {
     
   });
 
-  it("Scenario 3", async () => {
+  it("Scenario 4 - StartTime,EndTime,Active Status of Basket ", async () => {
     let Assistant:HardhatEthersSigner;
     [Trader,Assistant, Inv1, Inv2, Inv3, Inv4] = await ethers.getSigners();
     let basket = await ethers.getContractFactory("Basket");
@@ -354,16 +490,16 @@ describe("Basket", async ()=> {
     await _invest(Inv1,2000);
     
     expect(await Basket.totalLockedFunds()).to.equal(1000);
-    expect(await Basket._inContractLockedLiquidity()).to.equal(1000);
-    expect(await Basket._exchangeLockedLiquidity()).to.equal(0);
-    expect(await Basket._requirdLiquidity()).to.equal(2000);
+    expect(await Basket.contractLockedLiquidity()).to.equal(1000);
+    expect(await Basket.exchangeLockedLiquidity()).to.equal(0);
+    expect(await Basket.requirdLiquidity()).to.equal(2000);
     
     await expect(Basket.connect(Assistant).transferFundToExchange(Assistant,400)).not.to.be.reverted;
     
     expect(await Basket.totalLockedFunds()).to.equal(1000);
-    expect(await Basket._inContractLockedLiquidity()).to.equal(600);
-    expect(await Basket._exchangeLockedLiquidity()).to.equal(400);
-    expect(await Basket._requirdLiquidity()).to.equal(2000);
+    expect(await Basket.contractLockedLiquidity()).to.equal(600);
+    expect(await Basket.exchangeLockedLiquidity()).to.equal(400);
+    expect(await Basket.requirdLiquidity()).to.equal(2000);
 
     expect(await Basket.totalQueuedFunds()).to.equal(2000);
 
@@ -371,14 +507,16 @@ describe("Basket", async ()=> {
     await expect(Basket.connect(Assistant).transferFundFromExchange(400)).not.to.be.reverted;
 
     expect(await Basket.totalLockedFunds()).to.equal(1000);
-    expect(await Basket._inContractLockedLiquidity()).to.equal(1000);
-    expect(await Basket._exchangeLockedLiquidity()).to.equal(0);
-    expect(await Basket._requirdLiquidity()).to.equal(2000);
+    expect(await Basket.contractLockedLiquidity()).to.equal(1000);
+    expect(await Basket.exchangeLockedLiquidity()).to.equal(0);
+    expect(await Basket.requirdLiquidity()).to.equal(2000);
 
     expect(await Basket.totalQueuedFunds()).to.equal(2000);
 
     
   });
+
+  
 
   async function CreateUSDT() {
     let usdt = await ethers.getContractFactory("Token");

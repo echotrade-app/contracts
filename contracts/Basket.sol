@@ -4,7 +4,6 @@ pragma solidity >=0.7.0 <0.9.0;
 
 import "./SafeMath.sol";
 import "./IterableMapping.sol";
-// import "hardhat/console.sol";
 
 contract Basket {
   using SafeMath for uint256;
@@ -36,9 +35,9 @@ contract Basket {
   uint256 public traderSuccessFee;
   uint256 public adminSuccessFee;
 
-  uint256 public _requirdLiquidity;
-  uint256 public _exchangeLockedLiquidity; // _totalLiquidity = _requirdLiquidity + _exchangeLockedLiquidity + _contractLockedLiquidity
-  uint256 public _inContractLockedLiquidity; // totalLockedFunds = _exchangeLockedLiquidity + _inContractLockedLiquidity
+  uint256 public requirdLiquidity;
+  uint256 public exchangeLockedLiquidity; // _totalLiquidity = requirdLiquidity + exchangeLockedLiquidity + _contractLockedLiquidity
+  uint256 public contractLockedLiquidity; // totalLockedFunds = exchangeLockedLiquidity + contractLockedLiquidity
 
   uint256 public totalLockedFunds;
   uint256 public totalWithdrawRequests;
@@ -119,19 +118,17 @@ contract Basket {
   // ─── Administoration ─────────────────────────────────────────────────
 
   // close the basket
-  // todo define close process.
   function close() public _onlyOwner() returns (bool) {
     status = Status.closed;
-    require(_exchangeLockedLiquidity == 0, "requires all funds to be transfered to the Basket");
-    require(_mybalance(baseToken) >= totalLockedFunds + _requirdLiquidity, "isufficent liquidity to close the Basket");
-    // release all Lockedfunds 
-    // release all queued funds
-    // 
     // inExchangeLiquidity = 0
-    // inContractLiquidity = 0
-    // realase TraderFunds
-    // transfer AdminShare to the Admin
-    
+    require(exchangeLockedLiquidity == 0, "requires all funds to be transfered to the Basket");
+    require(_mybalance(baseToken) >= totalLockedFunds + requirdLiquidity, "isufficent liquidity to close the Basket");
+    // release all Lockedfunds & queued funds and remove all unlockedFunds Requests
+    // TraderFunds will be released in __releaseAllFunds too.
+    __releaseAllFunds();
+
+    contractLockedLiquidity = 0;
+
     emit Close();
     return true;
   }
@@ -139,7 +136,7 @@ contract Basket {
   // the owner should approve _owner_fund to this contract, to be accivated, one the basket closes, this ammount will return back to the owner. 
   function active() public _onlyOwner() _ownerFundTransfered() returns (bool) {
       status = Status.active;
-      _inContractLockedLiquidity = _inContractLockedLiquidity.add(traderFund);
+      contractLockedLiquidity = contractLockedLiquidity.add(traderFund);
       _lockedFunds.set(trader, traderFund);
       totalLockedFunds = totalLockedFunds.add(traderFund);
       emit Active();
@@ -152,8 +149,8 @@ contract Basket {
   }
 
   function transferFundToExchange(address _account,uint256 _amount) public _onlyAdminOrAssitant() returns (bool) {
-    _inContractLockedLiquidity = _inContractLockedLiquidity.sub(_amount);
-    _exchangeLockedLiquidity = _exchangeLockedLiquidity.add(_amount);
+    contractLockedLiquidity = contractLockedLiquidity.sub(_amount);
+    exchangeLockedLiquidity = exchangeLockedLiquidity.add(_amount);
     (bool success,) = baseToken.call(abi.encodeWithSelector(_transferSelector, _account, _amount));
     require(success,"Transfering from contract failed");
     emit TransferFundToExchange(_account, _amount);
@@ -161,16 +158,28 @@ contract Basket {
   }
 
   function transferFundFromExchange(uint256 _amount) public _onlyAdminOrAssitant() returns (bool) {
-    require(_mybalance(baseToken) >= _requirdLiquidity+_amount,"requires more funds for transferring from the exchange");
-    _inContractLockedLiquidity = _inContractLockedLiquidity.add(_amount);
-    _exchangeLockedLiquidity = _exchangeLockedLiquidity.sub(_amount);
+    require(_mybalance(baseToken) >= requirdLiquidity+_amount,"requires more funds for transferring from the exchange");
+    contractLockedLiquidity = contractLockedLiquidity.add(_amount);
+    exchangeLockedLiquidity = exchangeLockedLiquidity.sub(_amount);
     emit TransferFundFromExchange(_amount);
     return true;
   }
 
   function adminShareProfit() public _onlyAdminOrAssitant() returns (bool) {
-    return false;
+    bool success =  __transfer(adminShare,admin);
+    adminShare = 0;
+    return success;
+  }
 
+  function withdrawReminders(address _contract) public _onlyAdminOrAssitant() returns (bool) {
+    require(status==Status.closed,"Basket must be closed to call this method");
+    uint256 amount = _mybalance(_contract);
+    if (_contract == baseToken) {
+      amount = amount.sub(requirdLiquidity);
+    }
+    (bool success, ) = _contract.call(abi.encodeWithSelector(_transferSelector,msg.sender,amount));
+    require(success,"transfering from contract failed");
+    return true;
   }
 
   // ─── Profit Sharing ──────────────────────────────────────────────────
@@ -198,19 +207,19 @@ contract Basket {
     uint256 traderShare = SafeMath.div(SafeMath.mul(_amount, traderSuccessFee), 10000); // 2 flouting number presision for percents 15% => 1500
     // ─── Manage Liquidity ────────────────────────────────────────
     
-    int256 _requiredTransfer = int256(_amount + totalWithdrawRequests ) - int256(totalQueuedFunds) - int256(_inContractLockedLiquidity);
+    int256 _requiredTransfer = int256(_amount + totalWithdrawRequests ) - int256(totalQueuedFunds) - int256(contractLockedLiquidity);
     // the _requiredTransfer should be transfer from exchange to smart Contract.
     if (_requiredTransfer > 0) {
-      _requirdLiquidity = _requirdLiquidity.add(uint256(_amount)).add(totalWithdrawRequests).sub(totalQueuedFunds);
-      require(_mybalance(baseToken) >= _requirdLiquidity,"required more funds for profit sharing");
+      requirdLiquidity = requirdLiquidity.add(uint256(_amount)).add(totalWithdrawRequests).sub(totalQueuedFunds);
+      require(_mybalance(baseToken) >= requirdLiquidity,"required more funds for profit sharing");
       emit TransferFundFromExchange(uint256(_requiredTransfer));
-      _exchangeLockedLiquidity = _exchangeLockedLiquidity.add(totalQueuedFunds).add(_amount).sub(uint256(_requiredTransfer));
-      _inContractLockedLiquidity = _inContractLockedLiquidity.add(uint256(_requiredTransfer)).sub(totalWithdrawRequests).sub(_amount);
+      exchangeLockedLiquidity = exchangeLockedLiquidity.add(totalQueuedFunds).add(_amount).sub(uint256(_requiredTransfer));
+      contractLockedLiquidity = contractLockedLiquidity.add(uint256(_requiredTransfer)).sub(totalWithdrawRequests).sub(_amount);
     }else {
 
-      _exchangeLockedLiquidity = _exchangeLockedLiquidity.add(_amount);
-      _inContractLockedLiquidity = _inContractLockedLiquidity.add(totalQueuedFunds).sub(_amount).sub(totalWithdrawRequests);
-      _requirdLiquidity = _requirdLiquidity + _amount + totalWithdrawRequests - totalQueuedFunds;
+      exchangeLockedLiquidity = exchangeLockedLiquidity.add(_amount);
+      contractLockedLiquidity = contractLockedLiquidity.add(totalQueuedFunds).sub(_amount).sub(totalWithdrawRequests);
+      requirdLiquidity = requirdLiquidity + _amount + totalWithdrawRequests - totalQueuedFunds;
     }
     
     uint256 shareAmount = _amount.sub(_adminShare).sub(traderShare);
@@ -231,7 +240,7 @@ contract Basket {
   }
 
   function _loss(uint256 _amount) internal returns (bool) {
-    require(_amount <= _exchangeLockedLiquidity, "you can not loss more than requidity of your exchange");
+    require(_amount <= exchangeLockedLiquidity, "you can not loss more than requidity of your exchange");
     // Manage Liquidity
     // share profit/loss
     // luck queued funds
@@ -239,17 +248,17 @@ contract Basket {
 
     // ─── Manage Liquidity ────────────────────────────────────────
     uint256 _rtotalWithdrawRequest = __realTotalWithdrawRequests(-int256(_amount));
-    int256 _requiredTransfer = int256(_rtotalWithdrawRequest ) - int256(totalQueuedFunds) - int256(_inContractLockedLiquidity);
+    int256 _requiredTransfer = int256(_rtotalWithdrawRequest ) - int256(totalQueuedFunds) - int256(contractLockedLiquidity);
     if (_requiredTransfer > 0 ) {
-      _requirdLiquidity = _requirdLiquidity.add(_rtotalWithdrawRequest).sub(totalQueuedFunds);
-      require(_mybalance(baseToken) >= _requirdLiquidity,"required more funds for profit sharing");
+      requirdLiquidity = requirdLiquidity.add(_rtotalWithdrawRequest).sub(totalQueuedFunds);
+      require(_mybalance(baseToken) >= requirdLiquidity,"required more funds for profit sharing");
       emit TransferFundFromExchange(uint256(_requiredTransfer));
-      _exchangeLockedLiquidity = _exchangeLockedLiquidity.sub(_amount).sub(uint256(_requiredTransfer));
-      _inContractLockedLiquidity = _inContractLockedLiquidity.add(uint256(_requiredTransfer)).add(totalQueuedFunds).sub(_rtotalWithdrawRequest);
+      exchangeLockedLiquidity = exchangeLockedLiquidity.sub(_amount).sub(uint256(_requiredTransfer));
+      contractLockedLiquidity = contractLockedLiquidity.add(uint256(_requiredTransfer)).add(totalQueuedFunds).sub(_rtotalWithdrawRequest);
     }else {
-      _exchangeLockedLiquidity = _exchangeLockedLiquidity.sub(_amount);
-      _inContractLockedLiquidity = _inContractLockedLiquidity.add(totalQueuedFunds).sub(_rtotalWithdrawRequest);
-      _requirdLiquidity = _requirdLiquidity + _rtotalWithdrawRequest - totalQueuedFunds;
+      exchangeLockedLiquidity = exchangeLockedLiquidity.sub(_amount);
+      contractLockedLiquidity = contractLockedLiquidity.add(totalQueuedFunds).sub(_rtotalWithdrawRequest);
+      requirdLiquidity = requirdLiquidity + _rtotalWithdrawRequest - totalQueuedFunds;
     }
 
     // ─── Share Profit And Loss ───────────────────────────────────
@@ -297,6 +306,29 @@ contract Basket {
     totalQueuedFunds = 0;
   }
 
+  function __releaseAllFunds() internal {
+    totalQueuedFunds = 0;
+    totalWithdrawRequests = 0;
+    totalLockedFunds = 0;
+    for (uint i = _lockedFunds.size(); i > 0 ; --i) {
+      address key = _lockedFunds.getKeyAtIndex(i-1);
+      requirdLiquidity = requirdLiquidity.add(_lockedFunds.get(key));
+      releasedFunds[key] = releasedFunds[key].add(_lockedFunds.get(key)).add(_queuedFunds.get(key));
+      _lockedFunds.remove(key);
+      _queuedFunds.remove(key);
+    }
+    for (uint i = _queuedFunds.size(); i > 0 ; --i) {
+      address key = _queuedFunds.getKeyAtIndex(i-1);
+      releasedFunds[key] = releasedFunds[key].add(_queuedFunds.get(key));
+      _queuedFunds.remove(key);
+    }
+    for (uint i = _withdrawRequests.size(); i > 0 ; --i) {
+      address key = _withdrawRequests.getKeyAtIndex(i-1);
+      _withdrawRequests.remove(key);
+    }
+
+  }
+
   function __releaseFund() internal {
     for (uint i = _withdrawRequests.size(); i > 0 ; --i) {
         address key = IterableMapping.getKeyAtIndex(_withdrawRequests, i-1);
@@ -323,7 +355,7 @@ contract Basket {
   }
 
   function profitShareRequiredFund(int256 _amount) public view returns (int256) {
-    return _amount >= 0 ? _amount + int256(__realTotalWithdrawRequests(_amount)) - int256(totalQueuedFunds) - int256(_inContractLockedLiquidity) : int256(__realTotalWithdrawRequests(_amount)) - int256(totalQueuedFunds) - int256(_inContractLockedLiquidity);
+    return _amount >= 0 ? _amount + int256(__realTotalWithdrawRequests(_amount)) - int256(totalQueuedFunds) - int256(contractLockedLiquidity) : int256(__realTotalWithdrawRequests(_amount)) - int256(totalQueuedFunds) - int256(contractLockedLiquidity);
   }
 
   function __realTotalWithdrawRequests(int256 _amount) internal view returns (uint256) {
@@ -408,7 +440,7 @@ contract Basket {
   function __transfer(uint256 _amount,address _account) internal returns (bool) {
     (bool success,) = baseToken.call(abi.encodeWithSelector(_transferSelector, _account, _amount));
     require(success,"Transfering from contract failed");
-    _requirdLiquidity = _requirdLiquidity.sub(_amount);
+    requirdLiquidity = requirdLiquidity.sub(_amount);
     return true;
   }
 
@@ -477,7 +509,7 @@ contract Basket {
   modifier _mustBeTransferred(uint256 _amount, address _from,address _to) {
     (bool _success, ) = baseToken.call(abi.encodeWithSelector(_transferFromSelector,_from, _to, _amount));
     require(_success,"Transfering from _contract failed");
-    _requirdLiquidity = _requirdLiquidity.add(_amount);
+    requirdLiquidity = requirdLiquidity.add(_amount);
     _;
   }
 
