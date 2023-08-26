@@ -10,7 +10,7 @@ contract SuperAdmin {
       _;
   }
   
-  constructor(uint256 hi) {
+  constructor() {
     _superAdmin = payable(msg.sender);
   }
   

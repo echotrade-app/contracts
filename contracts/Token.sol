@@ -7,8 +7,13 @@ import "./Basket.sol";
 import "./SafeMath.sol";
 import "./IterableMapping.sol";
 import "./SuperAdmin.sol";
+import "./Vesting.sol";
 
-contract Token is ITRC20,SuperAdmin {
+/**
+  * @title Token
+  * @dev Customized Ditailed TRC20 Token providing vestingaccount and superadmin as maintainer
+ */
+contract Token is ITRC20,SuperAdmin,Vesting {
   using SafeMath for uint256;
   using IterableMapping for IterableMapping.Map;
   
@@ -21,10 +26,6 @@ contract Token is ITRC20,SuperAdmin {
   bytes4 private _transferSelector;
   bytes4 private _balanceOfSelector;
 
-  Basket[] public _baskets;
-
-  // Proposal.Surrogate public _proposal; 
-
   IterableMapping.Map private _balances;
 
   mapping (address => mapping (address => uint256)) private _allowances;
@@ -34,10 +35,12 @@ contract Token is ITRC20,SuperAdmin {
   mapping (address => mapping (address => uint256)) private _profits;
 
   mapping (address => uint256) private _lockedFunds;
+  
+  mapping (address => uint256) private _baseBalance;
 
   uint256 private _totalSupply;
   
-  constructor(string memory name, string memory symbol, uint8 decimals,uint256 hi) SuperAdmin(hi) payable {
+  constructor(string memory name, string memory symbol, uint8 decimals,uint256 startReleaseAt,uint releaseDuration) Vesting(startReleaseAt,releaseDuration) payable {
     
     _name = name;
     _symbol = symbol;
@@ -48,8 +51,7 @@ contract Token is ITRC20,SuperAdmin {
     _balanceOfSelector = bytes4(keccak256("balanceOf(address)"));
     
     
-
-    _mint(msg.sender, 1000*10**_decimals);
+    _baseBalance[msg.sender] = 1000*10**_decimals;
     _mint(msg.sender, 1000*10**_decimals);
   }
 
@@ -195,7 +197,7 @@ contract Token is ITRC20,SuperAdmin {
     * - `recipient` cannot be the zero address.
     * - `sender` must have a balance of at least `amount`.
     */
-  function _transfer(address sender, address recipient, uint256 amount) internal {
+  function _transfer(address sender, address recipient, uint256 amount) internal _isReleased(_baseBalance[sender],_balances.get(sender)-amount) {
       require(sender != address(0), "TRC20: transfer from the zero address");
       require(recipient != address(0), "TRC20: transfer to the zero address");
       
@@ -317,6 +319,7 @@ contract Token is ITRC20,SuperAdmin {
     return _withrawProfit(_contract,_to);
   }
   
+  
   function _withrawProfit(address _contract, address _to) internal returns (bool) {
     (bool _success,) = _contract.call(abi.encodeWithSelector(_transferSelector,_to, _profits[_to][_contract]));
     require(_success,"Transfering token fials");
@@ -332,23 +335,6 @@ contract Token is ITRC20,SuperAdmin {
   function lockedFunds(address _contract) public view returns (uint256) {
     return _lockedFunds[_contract];
   }
-
-  // ─── Superadmin Functions ────────────────────────────────────────────
-
-  
-
-  // ─── Basket Functions ────────────────────────────────────────────────
-
-  function createBasket(address _baseToken,uint256 _ownerFund) public returns (address) {
-    // Basket basket = new Basket(msg.sender, address(this), _baseToken,_ownerFund);
-    Basket basket;
-    _baskets.push(basket);
-    (bool _success, ) = _baseToken.call(abi.encodeWithSelector(_transferFromSelector,msg.sender, address(basket), _ownerFund));
-    require(_success,"Transfering from _contract failed");
-    return address(basket);
-  }
-
-  
 
   // ─── Utils ───────────────────────────────────────────────────────────
 
