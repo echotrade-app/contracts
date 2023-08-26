@@ -130,8 +130,6 @@ contract MultiSigWallet {
           (bool success, ) = transaction.baseToken.call(abi.encodeWithSelector(_transferSelector, transaction.to, transaction.value));
           require(success, "tx failed");
         }
-        
-
         emit ExecuteTransaction(msg.sender, _txIndex);
     }
 

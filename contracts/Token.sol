@@ -6,8 +6,9 @@ import "./ITRC20.sol";
 import "./Basket.sol";
 import "./SafeMath.sol";
 import "./IterableMapping.sol";
+import "./SuperAdmin.sol";
 
-contract Token is ITRC20 {
+contract Token is ITRC20,SuperAdmin {
   using SafeMath for uint256;
   using IterableMapping for IterableMapping.Map;
   
@@ -15,13 +16,13 @@ contract Token is ITRC20 {
   string private _symbol;
   uint8 private _decimals;
 
+
   bytes4 private _transferFromSelector;
   bytes4 private _transferSelector;
   bytes4 private _balanceOfSelector;
 
   Basket[] public _baskets;
 
-  
   // Proposal.Surrogate public _proposal; 
 
   IterableMapping.Map private _balances;
@@ -34,20 +35,20 @@ contract Token is ITRC20 {
 
   mapping (address => uint256) private _lockedFunds;
 
-  address payable private _superAdmin;
-
   uint256 private _totalSupply;
   
-  constructor(string memory name, string memory symbol, uint8 decimals) payable {
+  constructor(string memory name, string memory symbol, uint8 decimals,uint256 hi) SuperAdmin(hi) payable {
+    
     _name = name;
     _symbol = symbol;
     _decimals = decimals;
 
-    _superAdmin = payable(msg.sender);
-    
     _transferFromSelector = bytes4(keccak256("transferFrom(address,address,uint256)"));
     _transferSelector = bytes4(keccak256("transfer(address,uint256)"));
     _balanceOfSelector = bytes4(keccak256("balanceOf(address)"));
+    
+    
+
     _mint(msg.sender, 1000*10**_decimals);
     _mint(msg.sender, 1000*10**_decimals);
   }
@@ -334,14 +335,7 @@ contract Token is ITRC20 {
 
   // ─── Superadmin Functions ────────────────────────────────────────────
 
-  /**
-    * @dev surrogate the superadmin account to new account.
-    * 
-   */
-  function surrogate(address payable _account) public _onlySuperAdmin() returns (bool) {
-    _superAdmin = _account;
-    return true;
-  }
+  
 
   // ─── Basket Functions ────────────────────────────────────────────────
 
@@ -382,11 +376,5 @@ contract Token is ITRC20 {
     require(_profits[_to][_contract] > 0,"no withdrawable profit");
     _;
   }
-
-  modifier _onlySuperAdmin() {
-    require(msg.sender == _superAdmin,"you are not the super admin");
-    _;
-  }
-
-
+  
 }
