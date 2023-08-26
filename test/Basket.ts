@@ -520,11 +520,11 @@ describe("Basket", async ()=> {
 
   async function CreateUSDT() {
     let usdt = await ethers.getContractFactory("Token");
-    let USDT = await usdt.deploy("USDT", "USDT", 2,100,100);
-    expect(USDT.connect(Trader).transfer(Inv1, 10000)).not.to.be.reverted;
-    expect(USDT.connect(Trader).transfer(Inv2, 10000)).not.to.be.reverted;
-    expect(USDT.connect(Trader).transfer(Inv3, 10000)).not.to.be.reverted;
-    expect(USDT.connect(Trader).transfer(Inv4, 10000)).not.to.be.reverted;
+    let USDT = await usdt.deploy("USDT", "USDT", 2,await time.latest()-100,1);
+    await expect(USDT.connect(Trader).transfer(Inv1, 10000)).not.to.be.reverted;
+    await expect(USDT.connect(Trader).transfer(Inv2, 10000)).not.to.be.reverted;
+    await expect(USDT.connect(Trader).transfer(Inv3, 10000)).not.to.be.reverted;
+    await expect(USDT.connect(Trader).transfer(Inv4, 10000)).not.to.be.reverted;
     return USDT;
   }
 

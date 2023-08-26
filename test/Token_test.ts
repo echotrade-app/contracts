@@ -26,6 +26,7 @@ describe("Token",async ()=>{
       await expect(ECTO.connect(SA).transfer(Owner1, 10000)).to.be.reverted;
 
       // but this amount is
+      // console.log(await ECTO.whenWillRelease(100000,await))
       await expect(ECTO.connect(SA).transfer(Owner1, 1)).not.to.be.reverted;
       
       time.increaseTo(now+1.51*3600);

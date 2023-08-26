@@ -21,35 +21,19 @@ contract Token is ITRC20,SuperAdmin,Vesting {
   string private _symbol;
   uint8 private _decimals;
 
-
-  bytes4 private _transferFromSelector;
-  bytes4 private _transferSelector;
-  bytes4 private _balanceOfSelector;
-
-  IterableMapping.Map private _balances;
+  IterableMapping.Map internal _balances;
 
   mapping (address => mapping (address => uint256)) private _allowances;
-
-  /** @dev used for profit sharing
-    */
-  mapping (address => mapping (address => uint256)) private _profits;
-
-  mapping (address => uint256) private _lockedFunds;
   
-  mapping (address => uint256) private _baseBalance;
+  mapping (address => uint256) internal _baseBalance;
 
-  uint256 private _totalSupply;
+  uint256 internal _totalSupply;
   
   constructor(string memory name, string memory symbol, uint8 decimals,uint256 startReleaseAt,uint releaseDuration) Vesting(startReleaseAt,releaseDuration) payable {
     
     _name = name;
     _symbol = symbol;
     _decimals = decimals;
-
-    _transferFromSelector = bytes4(keccak256("transferFrom(address,address,uint256)"));
-    _transferSelector = bytes4(keccak256("transfer(address,uint256)"));
-    _balanceOfSelector = bytes4(keccak256("balanceOf(address)"));
-    
     
     _baseBalance[msg.sender] = 1000*10**_decimals;
     _mint(msg.sender, 1000*10**_decimals);
@@ -197,7 +181,7 @@ contract Token is ITRC20,SuperAdmin,Vesting {
     * - `recipient` cannot be the zero address.
     * - `sender` must have a balance of at least `amount`.
     */
-  function _transfer(address sender, address recipient, uint256 amount) internal _isReleased(_baseBalance[sender],_balances.get(sender)-amount) {
+  function _transfer(address sender, address recipient, uint256 amount) internal _isReleased(_baseBalance[sender],_balances.get(sender).sub(amount)) {
       require(sender != address(0), "TRC20: transfer from the zero address");
       require(recipient != address(0), "TRC20: transfer to the zero address");
       
@@ -283,84 +267,4 @@ contract Token is ITRC20,SuperAdmin,Vesting {
       _approve(account, msg.sender, _allowances[account][msg.sender].sub(amount));
   }
 
-  // ─── Profit Share ────────────────────────────────────────────────────
-
-  function profitShareBalance(address _contract, uint256 _amount) public _haveSufficientFund(_contract,_amount) returns (bool) {
-    return _profitShare(_contract, _amount);
-  }
-
-  /**
-    * @dev profitShare(address, amount) 
-    * sender is already approved the amount in the _contract address 
-    */
-  function profitShareApproved(address payable _contract, uint256 _amount) public _mustBeTransferred(_contract,_amount,msg.sender,address(this)) returns (bool) {
-    return _profitShare(_contract,_amount);
-  }
-  
-  function profitShareApproved(address payable _contract, uint256 _amount, address _from) public _mustBeTransferred(_contract,_amount,_from,address(this)) returns (bool) {
-    return _profitShare(_contract,_amount);
-  }
-
-  function _profitShare(address _contract, uint256 _amount) internal returns (bool) {
-    _lockedFunds[_contract] = _lockedFunds[_contract].add(_amount);
-    for (uint i = 0; i < _balances.size(); ++i) {
-        address key = IterableMapping.getKeyAtIndex(_balances, i);
-        _profits[key][_contract] = _profits[key][_contract].add(SafeMath.div(SafeMath.mul(_balances.get(key),_amount), _totalSupply));
-    }
-  }
-
-  // ─── Withdraw ─────────────────────────────────────────────────────────
-
-  function withdrawProfit(address _contract) public _haveSufficientWithdrawProfit(_contract,msg.sender) returns (bool) {
-    return _withrawProfit(_contract,msg.sender);
-  }
-
-  function withdrawProfit(address _contract,address _to) public _haveSufficientWithdrawProfit(_contract,_to) returns (bool) {
-    return _withrawProfit(_contract,_to);
-  }
-  
-  
-  function _withrawProfit(address _contract, address _to) internal returns (bool) {
-    (bool _success,) = _contract.call(abi.encodeWithSelector(_transferSelector,_to, _profits[_to][_contract]));
-    require(_success,"Transfering token fials");
-    _lockedFunds[_contract] = _lockedFunds[_contract].sub(_profits[_to][_contract]);
-    _profits[_to][_contract] = 0;
-    return true;
-  }
-
-  function withdrawableProfit(address _account, address _contract ) public view returns (uint256) {
-    return _profits[_account][_contract];
-  }
-
-  function lockedFunds(address _contract) public view returns (uint256) {
-    return _lockedFunds[_contract];
-  }
-
-  // ─── Utils ───────────────────────────────────────────────────────────
-
-  function mybalance(address _contract) internal returns (uint256) {
-    (bool _success,bytes memory _data ) = _contract.call(abi.encodeWithSelector(_balanceOfSelector,address(this)));
-    require(_success,"Fetching balance failed");
-    return uint256(bytes32(_data));
-  }
-
-  // ─── Modifiers ───────────────────────────────────────────────────────
-
-  
-  modifier _mustBeTransferred(address _contract, uint256 _amount, address _from,address _to) {
-    (bool _success, ) = _contract.call(abi.encodeWithSelector(_transferFromSelector,_from, _to, _amount));
-    require(_success,"Transfering from _contract failed");
-    _;
-  }
-
-  modifier _haveSufficientFund(address _contract, uint256 _amount) {
-    // require to not LocledAssets + Amount >= BalanceOf(this) at that contract
-    require(_lockedFunds[_contract].add(_amount) <= mybalance(_contract),"Insufficient funds for sharing this amount");
-    _;
-  }
-  modifier _haveSufficientWithdrawProfit(address _contract, address _to) {
-    require(_profits[_to][_contract] > 0,"no withdrawable profit");
-    _;
-  }
-  
 }

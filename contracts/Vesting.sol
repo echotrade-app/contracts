@@ -12,13 +12,9 @@ contract Vesting {
   uint256 private _releaseDuration;
   uint256 private _endReleaseAt;
 
-  modifier _isReleased(uint256 base,uint256 remiding) {
-    console.log("blockTimestamp",block.timestamp);
-    console.log("\tbase:",base);
-    console.log("\trem:",remiding);
-    if (base != 0 || block.timestamp >= _endReleaseAt) {
-      uint256 T = _startReleaseAt + SafeMath.div(SafeMath.mul(base-remiding, _releaseDuration), base);
-    console.log("\tT:",T);
+  modifier _isReleased(uint256 base,uint256 balance) {
+    if (base != 0 && block.timestamp < _endReleaseAt) {
+      uint256 T = _startReleaseAt + SafeMath.div(SafeMath.mul(base-balance, _releaseDuration), base);
       if (block.timestamp < T) {
         revert FundsIsNotReleasedYet(T);
       }
@@ -30,13 +26,10 @@ contract Vesting {
     _startReleaseAt = __startReleaseAt;
     _releaseDuration = __releaseDuration;
     _endReleaseAt = __startReleaseAt+__releaseDuration;
-    
-    console.log("start",_startReleaseAt);
-    console.log("end:",_endReleaseAt);
   }
 
-  function whenWillRelease(uint256 base, uint256 remiding) public view returns (uint256 wait) {
-    return _endReleaseAt - SafeMath.div(SafeMath.mul(base-remiding, _releaseDuration), base);
+  function whenWillRelease(uint256 base, uint256 balance) public view returns (uint256 wait) {
+    return _startReleaseAt + SafeMath.div(SafeMath.mul(base-balance, _releaseDuration), base);
   }
   
 }
