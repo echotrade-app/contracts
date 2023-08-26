@@ -17,7 +17,7 @@ contract Token is ITRC20 {
 
   bytes4 private _transferFromSelector;
   bytes4 private _transferSelector;
-  bytes4 private _balanceOf;
+  bytes4 private _balanceOfSelector;
 
   Basket[] public _baskets;
 
@@ -47,7 +47,8 @@ contract Token is ITRC20 {
     
     _transferFromSelector = bytes4(keccak256("transferFrom(address,address,uint256)"));
     _transferSelector = bytes4(keccak256("transfer(address,uint256)"));
-    _balanceOf = bytes4(keccak256("balanceOf(address)"));
+    _balanceOfSelector = bytes4(keccak256("balanceOf(address)"));
+    _mint(msg.sender, 1000*10**_decimals);
     _mint(msg.sender, 1000*10**_decimals);
   }
 
@@ -358,7 +359,7 @@ contract Token is ITRC20 {
   // ─── Utils ───────────────────────────────────────────────────────────
 
   function mybalance(address _contract) internal returns (uint256) {
-    (bool _success,bytes memory _data ) = _contract.call(abi.encodeWithSelector(_balanceOf,address(this)));
+    (bool _success,bytes memory _data ) = _contract.call(abi.encodeWithSelector(_balanceOfSelector,address(this)));
     require(_success,"Fetching balance failed");
     return uint256(bytes32(_data));
   }
