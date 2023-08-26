@@ -519,7 +519,7 @@ describe("Basket", async ()=> {
   
 
   async function CreateUSDT() {
-    let usdt = await ethers.getContractFactory("Token");
+    let usdt = await ethers.getContractFactory("USDT");
     let USDT = await usdt.deploy("USDT", "USDT", 2,await time.latest()-100,1);
     await expect(USDT.connect(Trader).transfer(Inv1, 10000)).not.to.be.reverted;
     await expect(USDT.connect(Trader).transfer(Inv2, 10000)).not.to.be.reverted;

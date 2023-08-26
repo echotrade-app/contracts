@@ -17,6 +17,11 @@ contract ECTA is Token {
   bytes4 private _transferSelector;
   bytes4 private _balanceOfSelector;
 
+  struct Investor {
+    address _address;
+    uint256 _share;
+  }
+
   mapping (address => mapping (address => uint256)) private _profits;
 
   // total locked funds from diffrents contracts.
@@ -24,11 +29,57 @@ contract ECTA is Token {
   // uint256 is the total Commitment to pay amount
   mapping (address => uint256) private _lockedFunds;
 
-  constructor(string memory name, string memory symbol, uint8 decimals,uint256 startReleaseAt,uint releaseDuration) Token(name,symbol,decimals,startReleaseAt,releaseDuration) {
+  constructor(
+    string memory name,
+    string memory symbol,
+    uint8 decimals,
+    uint256 startReleaseAt,
+    uint releaseDuration,
+    Investor[] memory _investors,
+    address _company,
+    address _treasury,
+    address _team,
+    address _liquidity,
+    address _capital
+    ) Token(name,symbol,decimals,startReleaseAt,releaseDuration) {
+
     _transferFromSelector = bytes4(keccak256("transferFrom(address,address,uint256)"));
     _transferSelector = bytes4(keccak256("transfer(address,uint256)"));
     _balanceOfSelector = bytes4(keccak256("balanceOf(address)"));
+    uint256 decimalFactor = 10**decimals;
+    uint256 __totalSupply = 100_000_000*decimalFactor;
+    uint256 _InvSum;
     
+    for (uint256 i = 0; i < _investors.length; i++) {
+    Investor memory Inv = _investors[i];  
+    _InvSum += Inv._share*decimalFactor;
+    _mint(Inv._address, Inv._share*decimalFactor, true);
+    }
+    require(_InvSum == 27_000_000*decimalFactor);
+    _mint(_company, 18_000_000*decimalFactor, true);
+    _mint(_treasury, 18_000_000*decimalFactor, true);
+    _mint(_liquidity, 10_000_000*decimalFactor, true);
+    _mint(_team, 14_000_000*decimalFactor, true);
+    _mint(_capital, 13_000_000*decimalFactor, false);
+
+    require(__totalSupply == totalSupply());
+  }
+
+  modifier _mustBeTransferred(address _contract, uint256 _amount, address _from,address _to) {
+    (bool _success, ) = _contract.call(abi.encodeWithSelector(_transferFromSelector,_from, _to, _amount));
+    require(_success,"Transfering from _contract failed");
+    _;
+  }
+
+  modifier _haveSufficientFund(address _contract, uint256 _amount) {
+    // require to not LocledAssets + Amount >= BalanceOf(this) at that contract
+    require(_lockedFunds[_contract].add(_amount) <= mybalance(_contract),"Insufficient funds for sharing this amount");
+    _;
+  }
+  
+  modifier _haveSufficientWithdrawProfit(address _contract, address _to) {
+    require(_profits[_to][_contract] > 0,"no withdrawable profit");
+    _;
   }
   
   // ─── Profit Share ────────────────────────────────────────────────────
@@ -52,7 +103,7 @@ contract ECTA is Token {
   function _profitShare(address _contract, uint256 _amount) internal returns (bool) {
     _lockedFunds[_contract] = _lockedFunds[_contract].add(_amount);
     for (uint i = 0; i < _balances.size(); ++i) {
-        address key = IterableMapping.getKeyAtIndex(_balances, i);
+        address key = _balances.getKeyAtIndex(i);
         _profits[key][_contract] = _profits[key][_contract].add(SafeMath.div(SafeMath.mul(_balances.get(key),_amount), _totalSupply));
     }
   }
@@ -66,7 +117,6 @@ contract ECTA is Token {
   function withdrawProfit(address _contract,address _to) public _haveSufficientWithdrawProfit(_contract,_to) returns (bool) {
     return _withrawProfit(_contract,_to);
   }
-  
   
   function _withrawProfit(address _contract, address _to) internal returns (bool) {
     (bool _success,) = _contract.call(abi.encodeWithSelector(_transferSelector,_to, _profits[_to][_contract]));
@@ -95,20 +145,6 @@ contract ECTA is Token {
   // ─── Modifiers ───────────────────────────────────────────────────────
 
   
-  modifier _mustBeTransferred(address _contract, uint256 _amount, address _from,address _to) {
-    (bool _success, ) = _contract.call(abi.encodeWithSelector(_transferFromSelector,_from, _to, _amount));
-    require(_success,"Transfering from _contract failed");
-    _;
-  }
 
-  modifier _haveSufficientFund(address _contract, uint256 _amount) {
-    // require to not LocledAssets + Amount >= BalanceOf(this) at that contract
-    require(_lockedFunds[_contract].add(_amount) <= mybalance(_contract),"Insufficient funds for sharing this amount");
-    _;
-  }
-  modifier _haveSufficientWithdrawProfit(address _contract, address _to) {
-    require(_profits[_to][_contract] > 0,"no withdrawable profit");
-    _;
-  }
   
 }

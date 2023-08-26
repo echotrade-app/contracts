@@ -34,9 +34,7 @@ contract Token is ITRC20,SuperAdmin,Vesting {
     _name = name;
     _symbol = symbol;
     _decimals = decimals;
-    
-    _baseBalance[msg.sender] = 1000*10**_decimals;
-    _mint(msg.sender, 1000*10**_decimals);
+
   }
 
   // ─── Details ─────────────────────────────────────────────────────────
@@ -203,14 +201,16 @@ contract Token is ITRC20,SuperAdmin,Vesting {
     *
     * - `to` cannot be the zero address.
     */
-  function _mint(address account, uint256 amount) internal {
+  function _mint(address account, uint256 amount,bool vesting) internal {
       require(account != address(0), "TRC20: mint to the zero address");
 
       _totalSupply = _totalSupply.add(amount);
 
       // _balances[account] = _balances[account].add(amount);
       IterableMapping.set(_balances, account, IterableMapping.get(_balances, account).add(amount));
-      
+      if (vesting) {
+        _baseBalance[account] = amount;
+      }
       emit Transfer(address(0), account, amount);
   }
 

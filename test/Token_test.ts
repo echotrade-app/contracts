@@ -13,7 +13,7 @@ describe("Token",async ()=>{
     it("SuperAdmin",async ()=>{
       let SA:HardhatEthersSigner, Owner1:HardhatEthersSigner, Owner2:HardhatEthersSigner, Owner3:HardhatEthersSigner, Owner4 :HardhatEthersSigner;
       [SA, Owner1, Owner2, Owner3, Owner4] = await ethers.getSigners();
-      let token = await ethers.getContractFactory("Token");
+      let token = await ethers.getContractFactory("USDT");
       let now = await time.latest();
       console.log(now);
       let ECTO = await token.connect(SA).deploy("ECTA", "ECTA", 2,now+1*3600,3600);
