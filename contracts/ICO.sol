@@ -22,13 +22,17 @@ contract ICO is SuperAdmin {
     uint256 public price;
     uint256 public minAmount;
     uint256 public decimal;
-
+    
     IterableMapping.Map internal _balances;
 
     bytes4 private _transferFromSelector;
     bytes4 private _transferSelector;
     bytes4 private _balanceOfSelector;
     uint256 private _decimalFactor;
+
+    event Withdraw(address _contract,address _to, uint256 _amount,string _memo );
+    event SetPrice(uint256 _newPrice);
+    event Buy(address buyer, uint256 _amount, uint256 _price);
     constructor(
         address _token,
         address _baseToken,
@@ -71,9 +75,20 @@ contract ICO is SuperAdmin {
     }
 
     function buy(uint256 amount) external _isValid(amount) _mustHaveSufficentFund(amount) _mustBeTransferred(baseToken,baseAmount(amount),msg.sender,address(this)) returns (bool success ) {
+        emit Buy(msg.sender, amount, price);
         return transfer(token, amount, msg.sender);
     }
-    
+
+    function setPrice(uint256 _price) external _onlySuperAdmin() returns (bool success) {
+        price = _price;
+        emit SetPrice(_price);
+        return true;
+    }
+
+    function withdraw(address _contract, address _to, uint256 _amount,string memory _memo) external _onlySuperAdmin() returns (bool success) {
+        emit Withdraw(_contract, _to, _amount, _memo);
+        return transfer(_contract, _amount, _to);
+    }
 
     function transfer(address _contract, uint256 amount, address _to) internal returns (bool) {
         (bool _success, ) = _contract.call(abi.encodeWithSelector(_transferSelector,_to,amount));
