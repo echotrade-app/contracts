@@ -17,7 +17,7 @@ contract USDT is Token {
     uint8 decimals,
     uint256 startReleaseAt,
     uint releaseDuration
-    ) Token(name,symbol,decimals,startReleaseAt,releaseDuration) {
-      _mint(msg.sender, 1000*10**decimals, true);
+    ) Token(name,symbol,decimals) {
+      _mint(msg.sender, 1000*10**decimals, startReleaseAt,releaseDuration);
     }
 }

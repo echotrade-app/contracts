@@ -9,6 +9,7 @@ import "./SafeMath.sol";
 import "./IterableMapping.sol";
 import "./SuperAdmin.sol";
 import "./Vesting.sol";
+
 contract ECTA is Token {
   using SafeMath for uint256;
   using IterableMapping for IterableMapping.Map;
@@ -104,10 +105,10 @@ contract ECTA is Token {
 
   function _profitShare(address _contract, uint256 _amount) internal returns (bool) {
     _lockedFunds[_contract] = _lockedFunds[_contract].add(_amount);
-    for (uint i = 0; i < _balances.size(); ++i) {
-        address key = _balances.getKeyAtIndex(i);
-        _profits[key][_contract] = _profits[key][_contract].add(SafeMath.div(SafeMath.mul(_balances.get(key),_amount), _totalSupply));
-    }
+    // for (uint i = 0; i < _balances.size(); ++i) {
+    //     address key = _balances.getKeyAtIndex(i);
+    //     _profits[key][_contract] = _profits[key][_contract].add(SafeMath.div(SafeMath.mul(_balances.get(key),_amount), _totalSupply));
+    // }
   }
 
   // ─── Withdraw ─────────────────────────────────────────────────────────

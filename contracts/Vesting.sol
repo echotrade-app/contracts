@@ -1,39 +1,53 @@
 // SPDX-License-Identifier: GPL-3.0
 
-pragma solidity >=0.7.0 <0.9.0;
+pragma solidity ^0.8.0;
 
 import "./SafeMath.sol";
-import "hardhat/console.sol";
 
-error FundsIsNotReleasedYet(uint256 wait);
+error FundsNotReleasedYet(uint256 releaseTime);
 
 contract Vesting {
-  
-  struct _Vesting {
-    uint256 base;
-    uint256 _startReleaseAt;
-    uint256 _releaseDuration;
-    uint256 _endReleaseAt;
-  }
+    using SafeMath for uint256;
 
-  mapping (address => _Vesting) private vestings ;
-
-  modifier _isReleased(address account ,uint256 balance) {
-    if (vestings[account].base != 0 && block.timestamp < vestings[account]._endReleaseAt) {
-      uint256 T = vestings[account]._startReleaseAt + SafeMath.div(SafeMath.mul(vestings[account].base-balance, vestings[account]._releaseDuration), vestings[account].base);
-      if (block.timestamp < T) {
-        revert FundsIsNotReleasedYet(T);
-      }
+    struct VestingSchedule {
+        uint256 base;
+        uint256 startReleaseAt;
+        uint256 releaseDuration;
+        uint256 endReleaseAt;
     }
-    _;
-  }
 
-  function whenWillRelease(address account, uint256 balance) public view returns (uint256 wait) {
-    return vestings[account]._startReleaseAt + SafeMath.div(SafeMath.mul(vestings[account].base-balance, vestings[account]._releaseDuration), vestings[account].base);
-  }
+    mapping(address => VestingSchedule) private vestingSchedules;
 
-  function vesting(address _account, uint256 _base, uint256 _startReleaseAt, uint256 _releaseDuration) internal {
-    vestings[_account] = _Vesting(_base, _startReleaseAt, _releaseDuration,_startReleaseAt+_releaseDuration);
-  }
-  
+    modifier onlyReleased(address account, uint256 balance) {
+        if (vestingSchedules[account].base != 0 && block.timestamp < vestingSchedules[account].endReleaseAt ) {
+            require(
+                block.timestamp >= calculateReleaseTime(account,balance),
+                "FundsNotReleasedYet"
+            );
+        }
+        _;
+    }
+
+
+    function calculateReleaseTime(address account, uint256 balance) internal view returns (uint256) {
+        return vestingSchedules[account].startReleaseAt + SafeMath.div(SafeMath.mul(vestingSchedules[account].base-balance, vestingSchedules[account].releaseDuration), vestingSchedules[account].base);
+    }
+
+    function whenWillRelease(address account, uint256 balance) external view returns (uint256) {
+        return calculateReleaseTime(account, balance);
+    }
+
+    function setVesting(
+        address account,
+        uint256 base,
+        uint256 startReleaseAt,
+        uint256 releaseDuration
+    ) internal {
+        vestingSchedules[account] = VestingSchedule(
+            base,
+            startReleaseAt,
+            releaseDuration,
+            startReleaseAt.add(releaseDuration)
+        );
+    }
 }

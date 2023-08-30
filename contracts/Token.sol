@@ -178,7 +178,7 @@ contract Token is ITRC20,SuperAdmin,Vesting {
     * - `recipient` cannot be the zero address.
     * - `sender` must have a balance of at least `amount`.
     */
-  function _transfer(address sender, address recipient, uint256 amount) internal _isReleased(sender,_balances[sender].sub(amount)) {
+  function _transfer(address sender, address recipient, uint256 amount) virtual internal onlyReleased(sender,_balances[sender].sub(amount)) {
       require(sender != address(0), "TRC20: transfer from the zero address");
       require(recipient != address(0), "TRC20: transfer to the zero address");
       
@@ -208,12 +208,12 @@ contract Token is ITRC20,SuperAdmin,Vesting {
   }
 
   function _mint(address account, uint256 amount, uint256 base, uint256 startReleaseAt, uint256 releaseDuration) internal {
-    vesting(account, base, startReleaseAt, releaseDuration);
+    setVesting(account, base, startReleaseAt, releaseDuration);
     _mint(account, amount);
   }
   
   function _mint(address account, uint256 amount, uint256 startReleaseAt, uint256 releaseDuration) internal {
-    vesting(account, amount, startReleaseAt, releaseDuration);
+    setVesting(account, amount, startReleaseAt, releaseDuration);
     _mint(account, amount);
   }
 
