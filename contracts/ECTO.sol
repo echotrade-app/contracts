@@ -29,6 +29,8 @@ contract ECTA is Token {
   // uint256 is the total Commitment to pay amount
   mapping (address => uint256) private _lockedFunds;
 
+  mapping (address => uint256) private _stakings;
+
   constructor(
     string memory name,
     string memory symbol,
@@ -41,7 +43,7 @@ contract ECTA is Token {
     address _team,
     address _liquidity,
     address _capital
-    ) Token(name,symbol,decimals,startReleaseAt,releaseDuration) {
+    ) Token(name,symbol,decimals) {
 
     _transferFromSelector = bytes4(keccak256("transferFrom(address,address,uint256)"));
     _transferSelector = bytes4(keccak256("transfer(address,uint256)"));
@@ -53,14 +55,14 @@ contract ECTA is Token {
     for (uint256 i = 0; i < _investors.length; i++) {
     Investor memory Inv = _investors[i];  
     _InvSum += Inv._share*decimalFactor;
-    _mint(Inv._address, Inv._share*decimalFactor, true);
+    _mint(Inv._address, Inv._share*decimalFactor, startReleaseAt, releaseDuration);
     }
     require(_InvSum == 27_000_000*decimalFactor);
-    _mint(_company, 18_000_000*decimalFactor, true);
-    _mint(_treasury, 18_000_000*decimalFactor, true);
-    _mint(_liquidity, 10_000_000*decimalFactor, true);
-    _mint(_team, 14_000_000*decimalFactor, true);
-    _mint(_capital, 13_000_000*decimalFactor, false);
+    _mint(_company, 18_000_000*decimalFactor,startReleaseAt,releaseDuration);
+    _mint(_treasury, 18_000_000*decimalFactor,startReleaseAt,releaseDuration);
+    _mint(_liquidity, 10_000_000*decimalFactor,startReleaseAt,releaseDuration);
+    _mint(_team, 14_000_000*decimalFactor,startReleaseAt,releaseDuration);
+    _mint(_capital, 13_000_000*decimalFactor);
 
     require(__totalSupply == totalSupply());
   }

@@ -107,4 +107,5 @@ contract ICO is SuperAdmin {
         return SafeMath.div(amount*price, _decimalFactor);
     }
 
+
 }

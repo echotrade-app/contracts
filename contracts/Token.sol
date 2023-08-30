@@ -21,16 +21,15 @@ contract Token is ITRC20,SuperAdmin,Vesting {
   string private _symbol;
   uint8 private _decimals;
 
-  IterableMapping.Map internal _balances;
+  // IterableMapping.Map internal _balances;
+  mapping (address => uint256) internal _balances;
 
   mapping (address => mapping (address => uint256)) private _allowances;
   
-  mapping (address => uint256) internal _baseBalance;
-
   uint256 internal _totalSupply;
   
-  constructor(string memory name, string memory symbol, uint8 decimals,uint256 startReleaseAt,uint releaseDuration) Vesting(startReleaseAt,releaseDuration) payable {
-    
+  constructor(string memory name, string memory symbol, uint8 decimals) payable {
+
     _name = name;
     _symbol = symbol;
     _decimals = decimals;
@@ -76,7 +75,7 @@ contract Token is ITRC20,SuperAdmin,Vesting {
     * @dev See {ITRC20-balanceOf}.
     */
   function balanceOf(address account) external view returns (uint256) {
-    return IterableMapping.get(_balances, account);
+    return _balances[account];
   }
 
   /**
@@ -179,15 +178,12 @@ contract Token is ITRC20,SuperAdmin,Vesting {
     * - `recipient` cannot be the zero address.
     * - `sender` must have a balance of at least `amount`.
     */
-  function _transfer(address sender, address recipient, uint256 amount) internal _isReleased(_baseBalance[sender],_balances.get(sender).sub(amount)) {
+  function _transfer(address sender, address recipient, uint256 amount) internal _isReleased(sender,_balances[sender].sub(amount)) {
       require(sender != address(0), "TRC20: transfer from the zero address");
       require(recipient != address(0), "TRC20: transfer to the zero address");
       
-      // _balances[sender] = _balances[sender].sub(amount);
-      IterableMapping.set(_balances, sender, IterableMapping.get(_balances, sender).sub(amount));
-      
-      // _balances[recipient] = _balances[recipient].add(amount);
-      IterableMapping.set(_balances, recipient, IterableMapping.get(_balances, recipient).add(amount));
+      _balances[sender] = _balances[sender].sub(amount);      
+      _balances[recipient] = _balances[recipient].add(amount);
       
       emit Transfer(sender, recipient, amount);
   }
@@ -201,17 +197,24 @@ contract Token is ITRC20,SuperAdmin,Vesting {
     *
     * - `to` cannot be the zero address.
     */
-  function _mint(address account, uint256 amount,bool vesting) internal {
+  function _mint(address account, uint256 amount) internal {
       require(account != address(0), "TRC20: mint to the zero address");
 
       _totalSupply = _totalSupply.add(amount);
 
-      // _balances[account] = _balances[account].add(amount);
-      IterableMapping.set(_balances, account, IterableMapping.get(_balances, account).add(amount));
-      if (vesting) {
-        _baseBalance[account] = amount;
-      }
+      _balances[account] = _balances[account].add(amount);
+
       emit Transfer(address(0), account, amount);
+  }
+
+  function _mint(address account, uint256 amount, uint256 base, uint256 startReleaseAt, uint256 releaseDuration) internal {
+    vesting(account, base, startReleaseAt, releaseDuration);
+    _mint(account, amount);
+  }
+  
+  function _mint(address account, uint256 amount, uint256 startReleaseAt, uint256 releaseDuration) internal {
+    vesting(account, amount, startReleaseAt, releaseDuration);
+    _mint(account, amount);
   }
 
   /**
@@ -230,8 +233,7 @@ contract Token is ITRC20,SuperAdmin,Vesting {
 
       _totalSupply = _totalSupply.sub(value);
 
-      // _balances[account] = _balances[account].sub(value);
-      IterableMapping.set(_balances, account, IterableMapping.get(_balances, account).sub(value));
+      _balances[account] = _balances[account].sub(value);
       emit Transfer(account, address(0), value);
   }
 

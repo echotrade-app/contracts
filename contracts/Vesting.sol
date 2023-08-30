@@ -8,13 +8,19 @@ import "hardhat/console.sol";
 error FundsIsNotReleasedYet(uint256 wait);
 
 contract Vesting {
-  uint256 private _startReleaseAt;
-  uint256 private _releaseDuration;
-  uint256 private _endReleaseAt;
+  
+  struct _Vesting {
+    uint256 base;
+    uint256 _startReleaseAt;
+    uint256 _releaseDuration;
+    uint256 _endReleaseAt;
+  }
 
-  modifier _isReleased(uint256 base,uint256 balance) {
-    if (base != 0 && block.timestamp < _endReleaseAt) {
-      uint256 T = _startReleaseAt + SafeMath.div(SafeMath.mul(base-balance, _releaseDuration), base);
+  mapping (address => _Vesting) private vestings ;
+
+  modifier _isReleased(address account ,uint256 balance) {
+    if (vestings[account].base != 0 && block.timestamp < vestings[account]._endReleaseAt) {
+      uint256 T = vestings[account]._startReleaseAt + SafeMath.div(SafeMath.mul(vestings[account].base-balance, vestings[account]._releaseDuration), vestings[account].base);
       if (block.timestamp < T) {
         revert FundsIsNotReleasedYet(T);
       }
@@ -22,14 +28,12 @@ contract Vesting {
     _;
   }
 
-  constructor (uint256 __startReleaseAt, uint256 __releaseDuration) {
-    _startReleaseAt = __startReleaseAt;
-    _releaseDuration = __releaseDuration;
-    _endReleaseAt = __startReleaseAt+__releaseDuration;
+  function whenWillRelease(address account, uint256 balance) public view returns (uint256 wait) {
+    return vestings[account]._startReleaseAt + SafeMath.div(SafeMath.mul(vestings[account].base-balance, vestings[account]._releaseDuration), vestings[account].base);
   }
 
-  function whenWillRelease(uint256 base, uint256 balance) public view returns (uint256 wait) {
-    return _startReleaseAt + SafeMath.div(SafeMath.mul(base-balance, _releaseDuration), base);
+  function vesting(address _account, uint256 _base, uint256 _startReleaseAt, uint256 _releaseDuration) internal {
+    vestings[_account] = _Vesting(_base, _startReleaseAt, _releaseDuration,_startReleaseAt+_releaseDuration);
   }
   
 }
