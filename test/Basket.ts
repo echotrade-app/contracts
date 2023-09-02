@@ -455,18 +455,21 @@ describe("Basket", async ()=> {
       await expect(USDT.connect(Investor).approve(await Basket.getAddress(), amount)).not.to.be.reverted;
       await expect(Basket.connect(Investor).invest(amount, ethers.encodeBytes32String(""))).not.to.be.reverted;
     }
+    
     await expect(Basket.connect(Trader).active()).to.be.reverted;
     await expect(USDT.connect(Inv1).approve(await Basket.getAddress(), 100)).not.to.be.reverted;
     await expect(Basket.connect(Inv1).invest(100, ethers.encodeBytes32String(""))).to.be.reverted; // since basket is not active yet
-
+    
+    
     await expect(USDT.connect(Trader).transfer(await Basket.getAddress(), 1000)).not.to.be.reverted;
     await expect(Basket.connect(Trader).active()).not.to.be.reverted;
-
+    
     await _invest(Inv1,2000);
     expect(await Basket.totalQueuedFunds()).to.equal(2000);
     expect(await Basket.totalLockedFunds()).to.equal(1000);
     expect(await Basket.lockedFunds(Trader)).to.equal(1000);
-
+    
+    await expect(Basket.connect(Trader)["withdrawFund(uint256)"](100)).to.be.reverted;
     
   });
 

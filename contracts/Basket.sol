@@ -53,9 +53,10 @@ contract Basket {
 
   ProfitShareRecord[] public _profitShares;
 
-  bytes4 private _transferFromSelector;
-  bytes4 private _transferSelector;
-  bytes4 private _balanceOfSelector;
+  bytes4 private constant TRANSFER_FROM_SELECTOR = bytes4(keccak256("transferFrom(address,address,uint256)"));
+  bytes4 private constant TRANSFER_SELECTOR = bytes4(keccak256("transfer(address,uint256)"));
+  bytes4 private constant BALANCE_OF_SELECTOR = bytes4(keccak256("balanceOf(address)"));
+
 
   event Invest(address _account, uint256 _amount);
   event WithdrawProfit(address _account, uint256 _amount);
@@ -82,7 +83,7 @@ contract Basket {
     uint _xid,
     address _baseToken,
     address _trader,
-    address _adminAssistant,
+    address _admin,
     uint256 _traderFund,
     uint256 _maximumFund,
     uint256 _minFund,
@@ -92,8 +93,8 @@ contract Basket {
     uint256 _endTime
     ) {
     trader = _trader;
-    admin = msg.sender;
-    adminAssistant = _adminAssistant;
+    admin = _admin;
+    adminAssistant = msg.sender;
 
     baseToken = _baseToken;
     
@@ -110,9 +111,6 @@ contract Basket {
     traderSuccessFee = _traderSuccessFee;
     adminSuccessFee = _adminSuccessFee;
 
-    _transferFromSelector = bytes4(keccak256("transferFrom(address,address,uint256)"));
-    _transferSelector = bytes4(keccak256("transfer(address,uint256)"));
-    _balanceOfSelector = bytes4(keccak256("balanceOf(address)"));
   }
 
   // ─── Administoration ─────────────────────────────────────────────────
@@ -151,7 +149,7 @@ contract Basket {
   function transferFundToExchange(address _account,uint256 _amount) public _onlyAdminOrAssitant() returns (bool) {
     contractLockedLiquidity = contractLockedLiquidity.sub(_amount);
     exchangeLockedLiquidity = exchangeLockedLiquidity.add(_amount);
-    (bool success,) = baseToken.call(abi.encodeWithSelector(_transferSelector, _account, _amount));
+    (bool success,) = baseToken.call(abi.encodeWithSelector(TRANSFER_SELECTOR, _account, _amount));
     require(success,"Transfering from contract failed");
     emit TransferFundToExchange(_account, _amount);
     return true;
@@ -165,10 +163,12 @@ contract Basket {
     return true;
   }
 
-  function adminShareProfit() public _onlyAdminOrAssitant() returns (bool) {
+  function adminShareProfit() public _onlyAdminOrAssitant() returns (uint256) {
     bool success =  __transfer(adminShare,admin);
+    require(success,"transferFund failed");
+    uint256 _amount = adminShare;
     adminShare = 0;
-    return success;
+    return _amount;
   }
 
   function withdrawReminders(address _contract) public _onlyAdminOrAssitant() returns (bool) {
@@ -177,7 +177,7 @@ contract Basket {
     if (_contract == baseToken) {
       amount = amount.sub(requirdLiquidity);
     }
-    (bool success, ) = _contract.call(abi.encodeWithSelector(_transferSelector,msg.sender,amount));
+    (bool success, ) = _contract.call(abi.encodeWithSelector(TRANSFER_SELECTOR,msg.sender,amount));
     require(success,"transfering from contract failed");
     return true;
   }
@@ -392,6 +392,7 @@ contract Basket {
     return _unlockFundRequest(_amount,msg.sender);
   }
   
+  // TODO TO be covered by unit tests
   function unlockFundRequestFrom(uint256 _amount,address _account) public _unlockFundRequestAllowed(_amount,_account) _onlyAdminOrAssitant() returns (bool) {
     return _unlockFundRequest(_amount,_account);
   }
@@ -406,6 +407,7 @@ contract Basket {
     return _withdrawProfit(_amount, _account);
   }
 
+  // TODO TO be covered by unit tests
   function withdrawFund(uint256 _amount) public returns (bool) {
     return _withdrawFund(_amount, msg.sender);
   }
@@ -442,7 +444,7 @@ contract Basket {
 
   // __transfer is very private function to transfer baseToken from this contract account to _account. 
   function __transfer(uint256 _amount,address _account) internal returns (bool) {
-    (bool success,) = baseToken.call(abi.encodeWithSelector(_transferSelector, _account, _amount));
+    (bool success,) = baseToken.call(abi.encodeWithSelector(TRANSFER_SELECTOR, _account, _amount));
     require(success,"Transfering from contract failed");
     requirdLiquidity = requirdLiquidity.sub(_amount);
     return true;
@@ -462,27 +464,13 @@ contract Basket {
     return true;
   }
 
+  // TODO TO be covered by unit tests
   function invest_signatureData(address _from, uint256 _amount, uint256 _exp) public pure returns (bytes32) {
     return keccak256(abi.encodePacked(_from, _amount, _exp));
   }
   
-  // reinvest from the Profit gained
-  function reinvestFromProfit(uint256 _amount) public returns (bool) {
-    return _reinvestFromProfit(_amount, msg.sender);
-  }
-
-  // todo to be test by senario
-  function _reinvestFromProfit(uint256 _amount, address _from) _isAcceptable(_amount) internal returns (bool) {
-    profits[_from] = profits[_from].sub(_amount);
-    _queuedFunds.set(_from, _queuedFunds.get(_from).add(_amount));
-    totalQueuedFunds = totalQueuedFunds + _amount;
-    emit ReinvestFromProfit(_from, _amount);
-    return true;
-  }
-
-
   function _mybalance(address _contract) internal returns (uint256) {
-    (bool _success,bytes memory _data ) = _contract.call(abi.encodeWithSelector(_balanceOfSelector,address(this)));
+    (bool _success,bytes memory _data ) = _contract.call(abi.encodeWithSelector(BALANCE_OF_SELECTOR,address(this)));
     require(_success,"Fetching balance failed");
     return uint256(bytes32(_data));
   }
@@ -503,6 +491,7 @@ contract Basket {
   }
 
   // only superadmin can call the function
+  // TODO TO be covered by unit tests
   modifier _onlyAdmin() {
     require(msg.sender == admin, "only admin is allowed to call this method");
     _;
@@ -515,7 +504,7 @@ contract Basket {
 
   // the _amount should be transfered from the _from account to the _to account.
   modifier _mustBeTransferred(uint256 _amount, address _from,address _to) {
-    (bool _success, ) = baseToken.call(abi.encodeWithSelector(_transferFromSelector,_from, _to, _amount));
+    (bool _success, ) = baseToken.call(abi.encodeWithSelector(TRANSFER_FROM_SELECTOR,_from, _to, _amount));
     require(_success,"Transfering from _contract failed");
     requirdLiquidity = requirdLiquidity.add(_amount);
     _;
@@ -547,6 +536,7 @@ contract Basket {
 
   modifier _unlockFundRequestAllowed(uint256 _amount,address _account) {
     if (_account == trader) {
+      // TODO TO be covered by unit tests
       require(_lockedFunds.get(_account).sub(_amount) >= traderFund,"you are not allowed to withdraw the funds");
     }
     _;
