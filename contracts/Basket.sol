@@ -4,6 +4,8 @@ pragma solidity >=0.7.0 <0.9.0;
 
 import "./SafeMath.sol";
 import "./IterableMapping.sol";
+import "./signature.sol";
+import "hardhat/console.sol";
 
 contract Basket {
   using SafeMath for uint256;
@@ -57,6 +59,7 @@ contract Basket {
   bytes4 private constant TRANSFER_SELECTOR = bytes4(keccak256("transfer(address,uint256)"));
   bytes4 private constant BALANCE_OF_SELECTOR = bytes4(keccak256("balanceOf(address)"));
 
+  string constant private SIGPREFIX = "\x19ECTA Signed Message:\n32"; 
 
   event Invest(address _account, uint256 _amount);
   event WithdrawProfit(address _account, uint256 _amount);
@@ -80,7 +83,7 @@ contract Basket {
 
 //   constructor(address owner,address admin, address baseToken, uint256 ownerFund) {
   constructor( 
-    uint _xid,
+    // uint _xid,
     address _baseToken,
     address _trader,
     address _admin,
@@ -101,7 +104,7 @@ contract Basket {
     status = Status.pending;
 
     traderFund = _traderFund;
-    xid = _xid;
+    // xid = _xid;
     maximumFund = _maximumFund;
     minFund = _minFund;
     
@@ -465,8 +468,8 @@ contract Basket {
   }
 
   // TODO TO be covered by unit tests
-  function invest_signatureData(address _from, uint256 _amount, uint256 _exp) public pure returns (bytes32) {
-    return keccak256(abi.encodePacked(_from, _amount, _exp));
+  function invest_signatureData(address _from, uint256 _amount, uint256 _exp) public view returns (bytes32) {
+    return keccak256(abi.encodePacked(address(this),_from, _amount, _exp));
   }
   
   function _mybalance(address _contract) internal returns (uint256) {
@@ -512,10 +515,12 @@ contract Basket {
 
   // check the signature of allowance of investing which is granted by the superadmin.
   modifier _mustBeAllowedToInvest(uint256 _amount, address _from, bytes memory _signature) {
-    // todo invest signature {amount(uint256),from(address),expiration(blockHeight)}
+    bytes32 SigHash = keccak256(abi.encodePacked(SIGPREFIX,invest_signatureData(_from,_amount,1700000000)));
+    //toDO WIP
+    require(Sig.recoverSigner(SigHash,_signature) != address(0),"Invalid Signer");
     _;
   }
-
+  
   // check that after investing this _amount the total funds is not exceeding the _maximum funds.
   modifier _isAcceptable(uint256 _amount) {
     require(totalQueuedFunds.add(totalLockedFunds).add(_amount).sub(totalWithdrawRequests) <= maximumFund,"the Basket is full");
