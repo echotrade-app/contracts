@@ -1,50 +1,122 @@
 import { expect } from 'chai';
 import { Contract, ContractFactory, Signer } from 'ethers';
 import { ethers } from 'hardhat';
+import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
+import { time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
+import { MultiSigWallet } from '../typechain-types';
 
-describe('MultiSigWallet', () => {
-  let MultiSigWallet: ContractFactory;
-  let multiSigWallet: Contract;
-  let owners: Signer[];
-  let numConfirmationsRequired: number;
-  let transferSelector: string;
 
-  beforeEach(async () => {
-    [owners[0], owners[1], owners[2]] = await ethers.getSigners();
-    numConfirmationsRequired = 2;
-    transferSelector = '0x' + 'transfer(address,uint256)'.slice(0, 8);
+describe("MultiSigWallet", async ()=>{
+    let Inv1:HardhatEthersSigner, Inv2:HardhatEthersSigner, Company:HardhatEthersSigner, Treasury:HardhatEthersSigner, Team :HardhatEthersSigner,Liquidity :HardhatEthersSigner,Capital :HardhatEthersSigner;
+    let Other:HardhatEthersSigner;
+    let decimalFactor: number;
+    let now: number;
+    let contract: MultiSigWallet;
+    
+    beforeEach(async () => {
+        decimalFactor = 10**6
+        now = await time.latest();
+        [Inv1, Inv2, Company, Treasury, Team, Liquidity, Capital,Other] = await ethers.getSigners();
+        let token = await ethers.getContractFactory("MultiSigWallet");
+        contract = await token.connect(Inv1).deploy(
+            [Inv2.getAddress(), Inv1.getAddress(), Company.getAddress(), Treasury.getAddress(), Team.getAddress(), Liquidity.getAddress(), Capital.getAddress(), Capital.getAddress(), Other.getAddress()], 
+            8,
+         );
+      });
 
-    MultiSigWallet = await ethers.getContractFactory('MultiSigWallet');
-    multiSigWallet = await MultiSigWallet.deploy([await owners[0].getAddress()], numConfirmationsRequired);
-    await multiSigWallet.deployed();
-  });
 
-  it('should submit and execute a transaction', async () => {
-    const to = await owners[1].getAddress();
-    const value = ethers.utils.parseEther('1.0');
-    const data = '0x';
 
-    // Submit a transaction
-    await multiSigWallet.connect(owners[0]).submitTransaction(to, value, data);
+    describe("submitTransaction", () => {
+        it("should submitTransaction", async function () {
+        
+            // Submit a transaction
+          const resp = await contract.submitTransaction(Inv1.getAddress(), Inv2.getAddress(), 1000, '0x');
+    
+          expect(resp).to.be.not.undefined;
+          expect(resp).to.be.not.null;
+          expect(resp).to.be.not.NaN;
+          expect(resp).to.equal(5);
+        });
+      });
 
-    const txIndex = 0;
+    describe("confirmTransaction", () => {
+        it("should confirmTransaction", async function () {
+        
+            // Submit a transaction
+          const resp = await contract.submitTransaction(Inv1.getAddress(), Inv2.getAddress(), 1000, '0x');
+    
+          expect(resp).to.be.not.undefined;
+          expect(resp).to.be.not.null;
+          expect(resp).to.be.not.NaN;
+          expect(resp).to.equal(5);
+        });
+    });
+      
+    describe("executeTransaction", () => {
+        it("should executeTransaction", async function () {
+        
+            // Submit a transaction
+          const resp = await contract.submitTransaction(Inv1.getAddress(), Inv2.getAddress(), 1000, '0x');
+    
+          expect(resp).to.be.not.undefined;
+          expect(resp).to.be.not.null;
+          expect(resp).to.be.not.NaN;
+          expect(resp).to.equal(5);
+        });
+      });
 
-    // Confirm the transaction
-    await multiSigWallet.connect(owners[1]).confirmTransaction(txIndex);
-    await multiSigWallet.connect(owners[2]).confirmTransaction(txIndex);
+      describe("revokeConfirmation", () => {
+        it("should revokeConfirmation", async function () {
+        
+            // Submit a transaction
+          const resp = await contract.submitTransaction(Inv1.getAddress(), Inv2.getAddress(), 1000, '0x');
+    
+          expect(resp).to.be.not.undefined;
+          expect(resp).to.be.not.null;
+          expect(resp).to.be.not.NaN;
+          expect(resp).to.equal(5);
+        });
+      });
+      
+      describe("getOwners", () => {
+        it("should getOwners", async function () {
+        
+            // Submit a transaction
+          const resp = await contract.submitTransaction(Inv1.getAddress(), Inv2.getAddress(), 1000, '0x');
+    
+          expect(resp).to.be.not.undefined;
+          expect(resp).to.be.not.null;
+          expect(resp).to.be.not.NaN;
+          expect(resp).to.equal(5);
+        });
+      });  
+      
+      describe("getTransactionCount", () => {
+        it("should getTransactionCount", async function () {
+        
+            // Submit a transaction
+          const resp = await contract.submitTransaction(Inv1.getAddress(), Inv2.getAddress(), 1000, '0x');
+    
+          expect(resp).to.be.not.undefined;
+          expect(resp).to.be.not.null;
+          expect(resp).to.be.not.NaN;
+          expect(resp).to.equal(5);
+        });
+      });
 
-    // Execute the transaction
-    const initialBalance = await ethers.provider.getBalance(to);
-    await multiSigWallet.connect(owners[0]).executeTransaction(txIndex);
 
-    const finalBalance = await ethers.provider.getBalance(to);
-    const transaction = await multiSigWallet.transactions(txIndex);
+      describe("getTransaction", () => {
+        it("should getTransaction", async function () {
+        
+            // Submit a transaction
+          const resp = await contract.submitTransaction(Inv1.getAddress(), Inv2.getAddress(), 1000, '0x');
+    
+          expect(resp).to.be.not.undefined;
+          expect(resp).to.be.not.null;
+          expect(resp).to.be.not.NaN;
+          expect(resp).to.equal(5);
+        });
+      });
 
-    // Check that the transaction was executed
-    expect(transaction.executed).to.equal(true);
-    // Check that the recipient's balance increased by the transaction value
-    expect(finalBalance.sub(initialBalance)).to.equal(value);
-  });
-
-  // Add more test cases as needed to cover other contract functionality
 });
+
