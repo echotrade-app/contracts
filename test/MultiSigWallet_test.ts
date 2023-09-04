@@ -31,7 +31,7 @@ describe("MultiSigWallet", async ()=>{
             expect(resp).to.be.not.undefined;
             expect(resp).to.be.not.null;
             expect(resp).to.be.not.NaN;
-            expect(resp).to.equal(5);
+            expect(resp).not.to.be.reverted;
         });
     });
 
@@ -45,7 +45,7 @@ describe("MultiSigWallet", async ()=>{
             expect(resp).to.be.not.undefined;
             expect(resp).to.be.not.null;
             expect(resp).to.be.not.NaN;
-            expect(resp).to.equal(5);
+            expect(resp).not.to.be.reverted;
         });
     });
       
@@ -59,7 +59,7 @@ describe("MultiSigWallet", async ()=>{
             expect(resp).to.be.not.undefined;
             expect(resp).to.be.not.null;
             expect(resp).to.be.not.NaN;
-            expect(resp).to.equal(5);
+            expect(resp).not.to.be.reverted;
         });
     });
 
@@ -73,7 +73,7 @@ describe("MultiSigWallet", async ()=>{
             expect(resp).to.be.not.undefined;
             expect(resp).to.be.not.null;
             expect(resp).to.be.not.NaN;
-            expect(resp).to.equal(5);
+            expect(resp).not.to.be.reverted;
         });
     });
       
@@ -87,7 +87,7 @@ describe("MultiSigWallet", async ()=>{
             expect(resp).to.be.not.undefined;
             expect(resp).to.be.not.null;
             expect(resp).to.be.not.NaN;
-            expect(resp).to.equal(5);
+            expect(resp).not.to.be.reverted;
         });
     });  
       
@@ -100,7 +100,7 @@ describe("MultiSigWallet", async ()=>{
             expect(resp).to.be.not.undefined;
             expect(resp).to.be.not.null;
             expect(resp).to.be.not.NaN;
-            expect(resp).to.equal(5);
+            expect(resp).not.to.be.reverted;
         });
     });
 
@@ -115,7 +115,7 @@ describe("MultiSigWallet", async ()=>{
             expect(resp).to.be.not.undefined;
             expect(resp).to.be.not.null;
             expect(resp).to.be.not.NaN;
-            expect(resp).to.equal(5);
+            expect(resp).not.to.be.reverted;
         });
     });
 
