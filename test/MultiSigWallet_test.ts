@@ -2,20 +2,15 @@ import { expect } from 'chai';
 import { Contract, ContractFactory, Signer } from 'ethers';
 import { ethers } from 'hardhat';
 import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
-import { time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import { MultiSigWallet } from '../typechain-types';
 
 
 describe("MultiSigWallet", async ()=>{
     let Inv1:HardhatEthersSigner, Inv2:HardhatEthersSigner, Company:HardhatEthersSigner, Treasury:HardhatEthersSigner, Team :HardhatEthersSigner,Liquidity :HardhatEthersSigner,Capital :HardhatEthersSigner;
     let Other:HardhatEthersSigner;
-    let decimalFactor: number;
-    let now: number;
     let contract: MultiSigWallet;
     
     beforeEach(async () => {
-        decimalFactor = 10**6
-        now = await time.latest();
         [Inv1, Inv2, Company, Treasury, Team, Liquidity, Capital,Other] = await ethers.getSigners();
         let token = await ethers.getContractFactory("MultiSigWallet");
         contract = await token.connect(Inv1).deploy(
@@ -38,7 +33,7 @@ describe("MultiSigWallet", async ()=>{
             expect(resp).to.be.not.NaN;
             expect(resp).to.equal(5);
         });
-      });
+    });
 
     describe("confirmTransaction", () => {
         it("should confirmTransaction", async function () {
@@ -66,7 +61,7 @@ describe("MultiSigWallet", async ()=>{
             expect(resp).to.be.not.NaN;
             expect(resp).to.equal(5);
         });
-      });
+    });
 
       describe("revokeConfirmation", () => {
         it("should revokeConfirmation", async function () {
@@ -80,7 +75,7 @@ describe("MultiSigWallet", async ()=>{
             expect(resp).to.be.not.NaN;
             expect(resp).to.equal(5);
         });
-      });
+    });
       
       describe("getOwners", () => {
         it("should getOwners", async function () {
@@ -94,7 +89,7 @@ describe("MultiSigWallet", async ()=>{
             expect(resp).to.be.not.NaN;
             expect(resp).to.equal(5);
         });
-      });  
+    });  
       
       describe("getTransactionCount", () => {
         it("should getTransactionCount", async function () {
@@ -107,7 +102,7 @@ describe("MultiSigWallet", async ()=>{
             expect(resp).to.be.not.NaN;
             expect(resp).to.equal(5);
         });
-      });
+    });
 
 
       describe("getTransaction", () => {
@@ -122,7 +117,7 @@ describe("MultiSigWallet", async ()=>{
             expect(resp).to.be.not.NaN;
             expect(resp).to.equal(5);
         });
-      });
+    });
 
 });
 
