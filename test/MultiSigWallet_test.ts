@@ -43,7 +43,7 @@ describe("MultiSigWallet", async ()=>{
         it("should confirmTransaction", async function () {
         
             // Submit a transaction
-          const resp = await contract.submitTransaction(Inv1.getAddress(), Inv2.getAddress(), 1000, '0x');
+          const resp = await contract.confirmTransaction(10000012300);
     
           expect(resp).to.be.not.undefined;
           expect(resp).to.be.not.null;
@@ -56,7 +56,7 @@ describe("MultiSigWallet", async ()=>{
         it("should executeTransaction", async function () {
         
             // Submit a transaction
-          const resp = await contract.submitTransaction(Inv1.getAddress(), Inv2.getAddress(), 1000, '0x');
+          const resp = await contract.executeTransaction(10000012300);
     
           expect(resp).to.be.not.undefined;
           expect(resp).to.be.not.null;
@@ -69,7 +69,7 @@ describe("MultiSigWallet", async ()=>{
         it("should revokeConfirmation", async function () {
         
             // Submit a transaction
-          const resp = await contract.submitTransaction(Inv1.getAddress(), Inv2.getAddress(), 1000, '0x');
+          const resp = await contract.revokeConfirmation(10000012300);
     
           expect(resp).to.be.not.undefined;
           expect(resp).to.be.not.null;
@@ -82,7 +82,7 @@ describe("MultiSigWallet", async ()=>{
         it("should getOwners", async function () {
         
             // Submit a transaction
-          const resp = await contract.submitTransaction(Inv1.getAddress(), Inv2.getAddress(), 1000, '0x');
+          const resp = await contract.getOwners();
     
           expect(resp).to.be.not.undefined;
           expect(resp).to.be.not.null;
@@ -95,7 +95,7 @@ describe("MultiSigWallet", async ()=>{
         it("should getTransactionCount", async function () {
         
             // Submit a transaction
-          const resp = await contract.submitTransaction(Inv1.getAddress(), Inv2.getAddress(), 1000, '0x');
+          const resp = await contract.getTransactionCount();
     
           expect(resp).to.be.not.undefined;
           expect(resp).to.be.not.null;
@@ -109,7 +109,7 @@ describe("MultiSigWallet", async ()=>{
         it("should getTransaction", async function () {
         
             // Submit a transaction
-          const resp = await contract.submitTransaction(Inv1.getAddress(), Inv2.getAddress(), 1000, '0x');
+          const resp = await contract.getTransaction(10000012300);
     
           expect(resp).to.be.not.undefined;
           expect(resp).to.be.not.null;
