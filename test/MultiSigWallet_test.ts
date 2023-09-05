@@ -55,6 +55,29 @@ describe("MultiSigWallet", async ()=>{
         });
     });
 
+    describe("submitTransaction", () => {
+        it("should be rejected", async function () {
+            const to = owners[0];
+            const value = 0;
+            const data = "0x0";
+            const contract_address = Inv1.getAddress();
+
+            await contract.waitForDeployment()
+
+            await expect(USDT.transfer(Inv2, 10000)).not.to.be.reverted;
+            await expect(USDT.transfer(Other, 10000)).not.to.be.reverted;
+
+            await contract.submitTransaction(contract_address, to, value, data);
+            await contract.confirmTransaction(0, {from: owners[0]});
+            const resp = await contract.executeTransaction(0, {from: owners[0]});
+
+            expect(resp).to.be.not.undefined;
+            expect(resp).to.be.not.null;
+            expect(resp).to.be.not.NaN;
+            expect(resp).not.to.be.reverted;
+        });
+    });
+
     describe("confirmTransaction", () => {
         it("should confirmTransaction", async function () {
             await contract.waitForDeployment()
