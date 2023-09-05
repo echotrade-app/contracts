@@ -1,32 +1,52 @@
+import { USDT } from './../typechain-types/USDT';
 import { expect } from 'chai';
 import { Contract, ContractFactory, Signer } from 'ethers';
 import { ethers } from 'hardhat';
 import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
-import { MultiSigWallet } from '../typechain-types';
+import { MultiSigWallet, USDT__factory } from '../typechain-types';
+import { time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 
 
 describe("MultiSigWallet", async ()=>{
+    const NUM_CONFIRMATIONS_REQUIRED = 2
     let Inv1:HardhatEthersSigner, Inv2:HardhatEthersSigner, Company:HardhatEthersSigner, Treasury:HardhatEthersSigner, Team :HardhatEthersSigner,Liquidity :HardhatEthersSigner,Capital :HardhatEthersSigner;
     let Other:HardhatEthersSigner;
     let contract: MultiSigWallet;
+    let usdt: USDT__factory;
+    let USDT: USDT;
+    let owners: Promise<string>[];
     
     beforeEach(async () => {
-        [Inv1, Inv2, Company, Treasury, Team, Liquidity, Capital,Other] = await ethers.getSigners();
+        [Inv1, Company, Treasury, Team, Liquidity, Capital] = await ethers.getSigners();
+        owners = [Inv1.getAddress(), Company.getAddress(), Treasury.getAddress(), Team.getAddress(), Liquidity.getAddress(), Capital.getAddress()];
         let token = await ethers.getContractFactory("MultiSigWallet");
         contract = await token.connect(Inv1).deploy(
-            [Inv2.getAddress(), Inv1.getAddress(), Company.getAddress(), Treasury.getAddress(), Team.getAddress(), Liquidity.getAddress(), Capital.getAddress(), Capital.getAddress(), Other.getAddress()], 
-            8,
+            owners,
+            NUM_CONFIRMATIONS_REQUIRED,
          );
+
+        usdt = await ethers.getContractFactory("USDT");
+        USDT = await usdt.deploy("USDT", "USDT", 2,await time.latest()-100,1);
       });
 
 
 
     describe("submitTransaction", () => {
-        it("should submitTransaction", async function () {
+        it("should be executed", async function () {
+            const to = owners[0];
+            const value = 0;
+            const data = "0x0";
+            const contract_address = Inv1.getAddress();
+
             await contract.waitForDeployment()
 
-            // Submit a transaction
-            const resp = await contract.submitTransaction(Inv1.getAddress(), Inv2.getAddress(), 1000, '0x');
+            await expect(USDT.transfer(Inv2, 10000)).not.to.be.reverted;
+            await expect(USDT.transfer(Other, 10000)).not.to.be.reverted;
+
+            await contract.submitTransaction(contract_address, to, value, data);
+            await contract.confirmTransaction(0, {from: owners[0]});
+            await contract.confirmTransaction(0, {from: owners[1]});
+            const resp = await contract.executeTransaction(0, {from: owners[0]});
 
             expect(resp).to.be.not.undefined;
             expect(resp).to.be.not.null;
