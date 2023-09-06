@@ -111,18 +111,41 @@ describe("MultiSigWallet", async ()=>{
             expect(trx.executed).equal(false);
         });
     });
+
+    describe("submitTransaction", () => {
+        it("should be rejected if it is already executed", async function () {
+            const to = owners[0];
+            const value = 0;
+            const data = "0x0";
+            const contract_address = Inv1.getAddress();
+
+            await contract.waitForDeployment()
+
+            await expect(USDT.connect(Inv2).transfer(Inv1, 10000)).not.to.be.reverted;
+
+            await contract.connect(Inv1).submitTransaction(contract_address, to, value, data);
+            await contract.confirmTransaction(0, {from: owners[0]});
+            await contract.confirmTransaction(0, {from: owners[1]});
+
+            await contract.executeTransaction(0, {from: owners[0]});
+
+            // to be rejected because it is already executed
+            expect(await contract.executeTransaction(0, {from: owners[0]})).to.be.rejected;
+   
+        });
+    });
       
     describe("executeTransaction", () => {
         it("should executeTransaction", async function () {
             await contract.waitForDeployment()
 
             // Submit a transaction
-            const resp = await contract.executeTransaction(10000012300);
+            const resp = await contract.executeTransaction(0);
 
             expect(resp).to.be.not.undefined;
             expect(resp).to.be.not.null;
             expect(resp).to.be.not.NaN;
-            expect(resp).not.to.be.reverted;
+            expect(resp).to.be.reverted;
         });
     });
 
@@ -130,8 +153,20 @@ describe("MultiSigWallet", async ()=>{
         it("should revokeConfirmation", async function () {
             await contract.waitForDeployment()
 
+            const to = owners[0];
+            const value = 0;
+            const data = "0x0";
+            const contract_address = Inv1.getAddress();
+
+            await contract.waitForDeployment()
+
+            await expect(USDT.connect(Inv2).transfer(Inv1, 10000)).not.to.be.reverted;
+
+            await contract.connect(Inv1).submitTransaction(contract_address, to, value, data);
+            await contract.confirmTransaction(0, {from: owners[0]});
+
             // Submit a transaction
-            const resp = await contract.revokeConfirmation(10000012300);
+            const resp = await contract.revokeConfirmation(0);
 
             expect(resp).to.be.not.undefined;
             expect(resp).to.be.not.null;
