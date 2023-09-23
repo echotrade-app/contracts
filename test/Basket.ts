@@ -470,7 +470,7 @@ describe("Basket", async ()=> {
     expect(await Basket.lockedFunds(Trader)).to.equal(1000);
     
     await expect(Basket.connect(Trader)["withdrawFund(uint256)"](100)).to.be.reverted;
-    
+
   });
 
   it("Scenario 4 - StartTime,EndTime,Active Status of Basket ", async () => {

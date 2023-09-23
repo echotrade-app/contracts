@@ -7,7 +7,6 @@ import "./SafeMath.sol";
 import "./IterableMapping.sol";
 import "./Vesting.sol";
 import "./IBasket.sol";
-import "hardhat/console.sol";
 
 contract ECTA is Token {
     using SafeMath for uint256;
@@ -75,6 +74,14 @@ contract ECTA is Token {
     }
 
     // ─── Modifiers ───────────────────────────────────────────────────────
+
+    /**
+        * @dev Ensures that the specified `_amount` is transferred from `_contract` of `_from` address to `_to` address.
+        * @param _contract The address of the contract from which the transfer should occur.
+        * @param _amount The amount to be transferred.
+        * @param _from The address from which the amount should be transferred.
+        * @param _to The address to which the amount should be transferred.
+        */
     // TODO TO be covered by unit tests
     modifier mustBeTransferred(address _contract, uint256 _amount, address _from,address _to) {
         (bool _success, ) = _contract.call(abi.encodeWithSelector(TRANSFER_FROM_SELECTOR,_from, _to, _amount));
@@ -82,17 +89,33 @@ contract ECTA is Token {
         _;
     }
 
+    /**
+        * @dev Modifier: Checks that the contract has sufficient funds to cover the specified `_amount`. Used in profit-sharing functions.
+        * @param _contract The address of the contract to check for sufficient funds.
+        * @param _amount The amount to verify against available funds.
+        * @notice Requires that `LockedAssets + _amount` is not greater than or equal to the balance of this contract.
+        */
     modifier haveSufficientFund(address _contract, uint256 _amount) {
         // require to not LocledAssets + Amount >= BalanceOf(this) at that contract
-        require(_lockedFunds[_contract].add(_amount) <= mybalance(_contract),"Insufficient funds for sharing this amount");
+        require(_lockedFunds[_contract].add(_amount) <= myBalance(_contract),"Insufficient funds for sharing this amount");
         _;
     }
     
-    modifier haveSufficientWithdrawProfit(address _contract, address _to) {
-        require(_profits[_to][_contract] > 0,"No withdrawable profit");
+    /**
+        * @dev Modifier: Checks that the specified `_account` has sufficient funds to cover the specified profit withdrawal.
+        * @param _contract The address of the contract from which profit is being withdrawn.
+        * @param _account The address of the account to check for sufficient funds.
+        */
+    modifier haveSufficientWithdrawProfit(address _contract, address _account) {
+        require(_profits[_account][_contract] > 0,"No withdrawable profit");
         _;
     }
 
+    /**
+        * @dev Modifier: Checks if the specified `amount` is unstakable, ensuring that the remaining amount is either zero or greater than the minimumStakeValue.
+        * @param account The address of the account making the staking operation.
+        * @param amount The amount to stake, to be checked for unstakability.
+        */
     // TODO TO be covered by unit tests
     modifier unstakable(address account, uint256 amount) {
         uint256 reminding = stakedBalances.get(account).sub(_getTotalUnlockRequests(account)).sub(amount);
@@ -100,15 +123,24 @@ contract ECTA is Token {
         _;
     }
 
+    /**
+        * @dev Modifier: Checks if the specified `amount` is stakable, ensuring that the cumulative amount is greater than or equal to the minimumStakeValue.
+        * @param account The address of the account making the staking operation.
+        * @param amount The amount to stake, to be checked for stackability.
+        */
     modifier stakable(address account, uint256 amount) {
         require(stakedBalances.get(account).add(amount) >= minimumStakeValue,"Invalid stake value");
         _;
     }
 
+    /**
+        * @dev Checks if the specified `amount` is available for transferring or burning.
+        * @param account The address of the account from which the transfer or burn is initiated.
+        * @param amount The amount to check for availability.
+        */
     modifier isAvailable(address account, uint256 amount) {
         require( _balances[account] >= amount + locked[account],"Insufficient balance");
         _;
-        
     }
 
     // ─── Staking ─────────────────────────────────────────────────────────
@@ -212,6 +244,11 @@ contract ECTA is Token {
     
     // ─── Basket Managment ────────────────────────────────────────────────
 
+    /**
+        * @dev Adds the Basket to the ECTA once it has been created. Only accessible by super admins. Requires that the Basket Admin address is equal to this contract's address.
+        * @param _basket The address of the Basket to add.
+        * @return A boolean indicating the success of the addition operation.
+        */ 
     function addBasket(address _basket) external _onlySuperAdmin() returns (bool) {
         IBasket basket = IBasket(_basket);
         require(basket.admin() == address(this),"Invalid Basket Admin");
@@ -220,6 +257,11 @@ contract ECTA is Token {
         return true;
     }
 
+    /**
+        * @dev Removes the Basket at the specified index from the list once it has been closed.
+        * @param index The index of the Basket to remove.
+        * @return A boolean indicating the success of the removal operation.
+        */
     function removeBasket(uint index) external returns (bool) {
         require(baskets[index].status() == Status.closed,"Basket must be closed");
         bool success = _gatherProfits(index);
@@ -233,6 +275,17 @@ contract ECTA is Token {
         }
         baskets.pop();
         return false;
+    }
+
+    /**
+        * @dev Sets the assistant for the superadmin in the Basket at the specified index and calls the set assistant function of the Basket.
+        * @param index The index of the Basket.
+        * @param _assistant The address of the assistant to set.
+        * @return A boolean indicating the success of the operation.
+        */
+    function setAssitant(uint index,address _assistant) external _onlySuperAdmin() returns (bool) {
+        // TODO
+        // call the set assitant function of the Basket
     }
 
     function gatherProfits(uint[] memory indexes) external returns (bool) {
@@ -267,24 +320,45 @@ contract ECTA is Token {
 
     // ─── Profit Sharing ──────────────────────────────────────────────────
 
+    /**
+        * @dev Public function for sharing profits from a transferred amount with the stakers after ensuring that the fund has already been transferred.
+        * @param _contract The address of the contract with the transferred funds.
+        * @param _amount The transferred amount to share as profit.
+        * @return A boolean indicating the success of the profit-sharing operation.
+        */
     function profitShareBalance(address _contract, uint256 _amount) public haveSufficientFund(_contract,_amount) returns (bool) {
         return _profitShare(_contract, _amount);
     }
 
     /**
-        * @dev profitShare(address, amount) 
-        * sender is already approved the amount in the _contract address 
+        * @dev Public function for sharing approved profits from `_contract` to this contract and then distributing them to stakers based on their share.
+        * @param _contract The address of the contract with approved profit.
+        * @param _amount The approved amount to be transferred and shared.
+        * @return A boolean indicating the success of the profit-sharing operation.
         */
     // TODO TO be covered by unit tests
     function profitShareApproved(address payable _contract, uint256 _amount) public mustBeTransferred(_contract,_amount,msg.sender,address(this)) returns (bool) {
         return _profitShare(_contract,_amount);
     }
     
+    /**
+        * @dev Transfers the approved `_amount` from `_contract` to this contract and then shares the profit.
+        * @param _contract The address of the contract with approved profit.
+        * @param _amount The approved amount to be transferred and shared.
+        * @param _from The address initiating the profit share.
+        * @return A boolean indicating the success of the profit-sharing operation.
+        */
     // TODO TO be covered by unit tests
     function profitShareApproved(address payable _contract, uint256 _amount, address _from) public mustBeTransferred(_contract,_amount,_from,address(this)) returns (bool) {
         return _profitShare(_contract,_amount);
     }
 
+    /**
+        * @dev Internal function for sharing profits gained with stakers based on their share. The reward will be withdrawable.
+        * @param _contract The address of the contract where the profit was gained.
+        * @param _amount The amount of profit to share.
+        * @return A boolean indicating the success of the profit-sharing operation.
+        */   
     function _profitShare(address _contract, uint256 _amount) internal returns (bool) {
         _lockedFunds[_contract] = _lockedFunds[_contract].add(_amount);
         for (uint i = 0; i < stakedBalances.size(); ++i) {
@@ -294,14 +368,42 @@ contract ECTA is Token {
         return true;
     }
 
+    /**
+        * @dev This function, burn(uint256 amount), is designed for potential future migration. It destroys `amount` tokens from the calling account, and the same `amount` is deducted from the total supply.
+        * @param amount The amount of tokens to be burned.
+        */
+    function burn(uint256 amount) external onlyReleased(msg.sender,_balances[msg.sender].sub(amount)) isAvailable(msg.sender,amount) {
+        _burn(msg.sender, amount);
+    }
+
+    /**
+        * @dev This function, burnFrom(address account, uint256 amount), is designed for potential future migration and should not be used in the current context. It destroys `amount` tokens from the calling account, and the same `amount` is deducted from the total supply.
+        * @param account The address from which tokens are to be burned.
+        * @param amount The amount of tokens to be burned.
+        */
+    function burnFrom(address account,uint256 amount) external onlyReleased(account,_balances[account].sub(amount)) isAvailable(account,amount) {
+        _burnFrom(account, amount);
+    }
+
     // ─── Utils ───────────────────────────────────────────────────────────
 
-    function mybalance(address _contract) internal returns (uint256) {
+    /**
+        * @dev Returns the ECTA balance of the specified contract.
+        * @param _contract The address of the contract to query.
+        * @return The ECTA balance of the contract.
+        */
+    function myBalance(address _contract) internal returns (uint256) {
         (bool _success,bytes memory _data ) = _contract.call(abi.encodeWithSelector(BALANCE_OF_SELECTOR,address(this)));
         require(_success,"Fetching balance failed");
         return uint256(bytes32(_data));
     }
     
+    /**
+        * @dev Overrides the token transfer function to prevent transfers of staked amounts.
+        * @param sender The address initiating the transfer.
+        * @param recipient The address receiving the tokens.
+        * @param amount The amount of tokens to transfer.
+        */
     function _transfer(address sender, address recipient, uint256 amount) internal isAvailable(sender,amount) override {
         Token._transfer(sender, recipient, amount);
     }

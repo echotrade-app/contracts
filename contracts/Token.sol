@@ -21,9 +21,6 @@ contract Token is IBEP20,SuperAdmin,Vesting {
   string private _symbol;
   uint8 private _decimals;
 
-  address public _owner;
-
-  // IterableMapping.Map internal _balances;
   mapping (address => uint256) internal _balances;
 
   mapping (address => mapping (address => uint256)) private _allowances;
@@ -80,9 +77,13 @@ contract Token is IBEP20,SuperAdmin,Vesting {
     return _balances[_account];
   }
 
+  /**
+    * @dev See {IBEP20-getOwner}.
+    */
   function getOwner() external view returns (address) {
-    return _owner;
+    return _superAdmin;
   }
+
   /**
     * @dev See {IBEP20-transfer}.
     *

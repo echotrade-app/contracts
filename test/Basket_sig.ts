@@ -44,11 +44,11 @@ describe("Basket", async ()=> {
     await expect(USDT.connect(Trader).transfer(Inv4, 10000)).not.to.be.reverted;
     return USDT;
   }
-
+  
   async function CreateBasket(baseToken: any,Trader:any) {
     let basket = await ethers.getContractFactory("Basket");
     let now = Math.floor(Date.now()/1000);
-    let Basket = basket.deploy( baseToken, Trader, Trader, 0, 100000, 250, 1500, 500,now+1*3600,now+24*3600 );
+    let Basket = basket.deploy(100, baseToken, Trader, Trader, 0, 100000, 250, 1500, 500,now+1*3600,now+24*3600 );
     return Basket;
   }
 });

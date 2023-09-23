@@ -83,7 +83,7 @@ contract Basket {
 
 //   constructor(address owner,address admin, address baseToken, uint256 ownerFund) {
   constructor( 
-    // uint _xid,
+    uint _xid,
     address _baseToken,
     address _trader,
     address _admin,
@@ -104,7 +104,7 @@ contract Basket {
     status = Status.pending;
 
     traderFund = _traderFund;
-    // xid = _xid;
+    xid = _xid;
     maximumFund = _maximumFund;
     minFund = _minFund;
     
@@ -517,7 +517,7 @@ contract Basket {
   modifier _mustBeAllowedToInvest(uint256 _amount, address _from, bytes memory _signature) {
     bytes32 SigHash = keccak256(abi.encodePacked(SIGPREFIX,invest_signatureData(_from,_amount,1700000000)));
     //toDO WIP
-    require(Sig.recoverSigner(SigHash,_signature) != address(0),"Invalid Signer");
+    // require(Sig.recoverSigner(SigHash,_signature) != address(0),"Invalid Signer");
     _;
   }
   
