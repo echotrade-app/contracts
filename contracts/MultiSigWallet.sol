@@ -9,6 +9,7 @@ contract MultiSigWallet {
 
     event SubmitTransaction(
         address indexed owner,
+        TxType txType,
         uint indexed txIndex,
         address indexed to,
         uint value,
@@ -96,7 +97,7 @@ contract MultiSigWallet {
             })
         );
 
-        emit SubmitTransaction(msg.sender, txIndex, _to, _value, _data);
+        emit SubmitTransaction(msg.sender,_txType, txIndex, _to, _value, _data);
     }
 
     function confirmTransaction(
@@ -179,6 +180,7 @@ contract MultiSigWallet {
         public
         view
         returns (
+            TxType txType,
             address to,
             uint value,
             bytes memory data,
@@ -189,6 +191,7 @@ contract MultiSigWallet {
         Transaction storage transaction = transactions[_txIndex];
 
         return (
+            transaction.txType,
             transaction.to,
             transaction.value,
             transaction.data,
