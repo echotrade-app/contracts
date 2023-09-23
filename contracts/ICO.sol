@@ -15,45 +15,73 @@ contract ICO is SuperAdmin {
     using SafeMath for uint256;
     using IterableMapping for IterableMapping.Map;
 
+    struct Price {
+        uint256 amount;
+        uint256 volume;
+        uint256 comStartVol;
+    }
+
+    // Token is the token sell in ICO
     address public token;
-    address public baseToken;
+
+    // baseTokens is the list of base tokens which we accept for seling the `token`.
+    address[] public baseTokens;
+    mapping(address => bool) private _mapedBaseTokens;
+
     uint256 public startTime;
     uint256 public endTime;
-    uint256 public price;
+    
+    // prices of ECTA
+    Price[] public prices;
+
+    // the total amount of ECTA which is soldout.
+    uint256 public filledAmount;
+    
+    // minium allowed amount of `token` to buy.
     uint256 public minAmount;
+
+    // decimal is the decimal factor of price.
     uint256 public decimal;
     
     IterableMapping.Map internal _balances;
 
-    bytes4 private _transferFromSelector;
-    bytes4 private _transferSelector;
-    bytes4 private _balanceOfSelector;
+    bytes4 private _transferFromSelector = bytes4(keccak256("transferFrom(address,address,uint256)"));
+    bytes4 private _transferSelector = bytes4(keccak256("transfer(address,uint256)"));
+    bytes4 private _balanceOfSelector = bytes4(keccak256("balanceOf(address)"));
     uint256 private _decimalFactor;
 
     event Withdraw(address _contract,address _to, uint256 _amount,string _memo );
-    event SetPrice(uint256 _newPrice);
+    event NextPrice(Price _price);
     event Buy(address buyer, uint256 _amount, uint256 _price);
+
     constructor(
         address _token,
-        address _baseToken,
+        address[] memory _baseToken,
         uint256 _startTime,
         uint256 _endTime,
-        uint256 _price,
+        Price[] memory _prices,
         uint256 _minAmount,
         uint256 _decimal
         ) {
         token = _token;
-        baseToken = _baseToken;
+
+        for (uint256 index = 0; index < _baseToken.length; index++) {
+            baseTokens.push(_baseToken[index]);
+            _mapedBaseTokens[_baseToken[index]]=true;
+        }
         startTime = _startTime;
         endTime = _endTime;
-        price = _price;
+
+        uint256 comVol;
+        for (uint256 index = 0; index < _prices.length; index++) {
+            prices.push(Price(_prices[index].amount,_prices[index].volume,comVol));
+            comVol = comVol + _prices[index].volume;
+        }
+        
         minAmount = _minAmount;
         decimal = _decimal;
-        _decimalFactor = 10**decimal;
 
-        _transferFromSelector = bytes4(keccak256("transferFrom(address,address,uint256)"));
-        _transferSelector = bytes4(keccak256("transfer(address,uint256)"));
-        _balanceOfSelector = bytes4(keccak256("balanceOf(address)"));
+        _decimalFactor = 10**decimal;
 
     }
 
@@ -67,6 +95,7 @@ contract ICO is SuperAdmin {
         require(mybalance(token)>= amount);
         _;
     }
+
     modifier _isValid(uint256 amount) {
         require(block.timestamp>= startTime,"ICO is not started yet");
         require(block.timestamp <= endTime,"ICO is ended");
@@ -74,15 +103,15 @@ contract ICO is SuperAdmin {
         _;
     }
 
-    function buy(uint256 amount) external _isValid(amount) _mustHaveSufficentFund(amount) _mustBeTransferred(baseToken,baseAmount(amount),msg.sender,address(this)) returns (bool success ) {
-        emit Buy(msg.sender, amount, price);
-        return transfer(token, amount, msg.sender);
+    modifier _isAcceptable(address _baseToken) {
+        require(_mapedBaseTokens[_baseToken],"this token is not supported");
+        _;
     }
 
-    function setPrice(uint256 _price) external _onlySuperAdmin() returns (bool success) {
-        price = _price;
-        emit SetPrice(_price);
-        return true;
+    function buy(address _baseToken,uint256 amount) external _isAcceptable(_baseToken) _isValid(amount) _mustHaveSufficentFund(amount) _mustBeTransferred(_baseToken,baseAmount(amount),msg.sender,address(this)) returns (bool success ) {
+        require(amount > 0, "amount cannot be empty");
+        emit Buy(msg.sender, amount, (baseAmount(amount)*_decimalFactor)/amount);
+        return transfer(token, amount, msg.sender);
     }
 
     function withdraw(address _contract, address _to, uint256 _amount,string memory _memo) external _onlySuperAdmin() returns (bool success) {
@@ -104,7 +133,16 @@ contract ICO is SuperAdmin {
     }
 
     function baseAmount(uint256 amount) public view returns (uint256) {
-        return SafeMath.div(amount*price, _decimalFactor);
+        return SafeMath.div(amount*getActivePrice().amount, _decimalFactor);
+    }
+
+    function getActivePrice() public view returns (Price memory price) {
+        for (uint256 index = 0; index < prices.length; index++) {
+            if (prices[index].comStartVol <= filledAmount){
+                return prices[index];
+            }
+        }
+        return prices[prices.length-1];
     }
 
 
