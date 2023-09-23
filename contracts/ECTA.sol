@@ -9,7 +9,6 @@ import "./Vesting.sol";
 import "./IBasket.sol";
 import "hardhat/console.sol";
 
-
 contract ECTA is Token {
     using SafeMath for uint256;
     using IterableMapping for IterableMapping.Map;

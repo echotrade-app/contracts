@@ -2,7 +2,7 @@
 
 pragma solidity >=0.7.0 <0.9.0;
 
-import "./ITRC20.sol";
+import "./IBEP20.sol";
 import "./Basket.sol";
 import "./SafeMath.sol";
 import "./IterableMapping.sol";

@@ -2,7 +2,7 @@
 
 pragma solidity >=0.7.0 <0.9.0;
 
-import "./ITRC20.sol";
+import "./IBEP20.sol";
 import "./Basket.sol";
 import "./SafeMath.sol";
 import "./IterableMapping.sol";
@@ -11,15 +11,17 @@ import "./Vesting.sol";
 
 /**
   * @title Token
-  * @dev Customized Ditailed TRC20 Token providing vestingaccount and superadmin as maintainer
+  * @dev Customized Ditailed BEP20 Token providing vestingaccount and superadmin as maintainer
  */
-contract Token is ITRC20,SuperAdmin,Vesting {
+contract Token is IBEP20,SuperAdmin,Vesting {
   using SafeMath for uint256;
   using IterableMapping for IterableMapping.Map;
   
   string private _name;
   string private _symbol;
   uint8 private _decimals;
+
+  address public _owner;
 
   // IterableMapping.Map internal _balances;
   mapping (address => uint256) internal _balances;
@@ -62,24 +64,27 @@ contract Token is ITRC20,SuperAdmin,Vesting {
     return _decimals;
   }
 
-  // ─── TRC20 ───────────────────────────────────────────────────────────
+  // ─── BEP20 ───────────────────────────────────────────────────────────
 
   /**
-    * @dev See {ITRC20-totalSupply}.
+    * @dev See {IBEP20-totalSupply}.
     */
   function totalSupply() public view returns (uint256) {
     return _totalSupply;
   }
 
   /**
-    * @dev See {ITRC20-balanceOf}.
+    * @dev See {IBEP20-balanceOf}.
     */
-  function balanceOf(address account) external view returns (uint256) {
-    return _balances[account];
+  function balanceOf(address _account) external view returns (uint256 balance) {
+    return _balances[_account];
   }
 
+  function getOwner() external view returns (address) {
+    return _owner;
+  }
   /**
-    * @dev See {ITRC20-transfer}.
+    * @dev See {IBEP20-transfer}.
     *
     * Requirements:
     *
@@ -92,14 +97,14 @@ contract Token is ITRC20,SuperAdmin,Vesting {
   }
 
   /**
-    * @dev See {ITRC20-allowance}.
+    * @dev See {IBEP20-allowance}.
     */
   function allowance(address owner, address spender) public view returns (uint256) {
       return _allowances[owner][spender];
   }
 
   /**
-    * @dev See {ITRC20-approve}.
+    * @dev See {IBEP20-approve}.
     *
     * Requirements:
     *
@@ -111,10 +116,10 @@ contract Token is ITRC20,SuperAdmin,Vesting {
   }
 
   /**
-    * @dev See {ITRC20-transferFrom}.
+    * @dev See {IBEP20-transferFrom}.
     *
     * Emits an {Approval} event indicating the updated allowance. This is not
-    * required by the EIP. See the note at the beginning of {TRC20};
+    * required by the EIP. See the note at the beginning of {BEP20};
     *
     * Requirements:
     * - `sender` and `recipient` cannot be the zero address.
@@ -132,7 +137,7 @@ contract Token is ITRC20,SuperAdmin,Vesting {
     * @dev Atomically increases the allowance granted to `spender` by the caller.
     *
     * This is an alternative to {approve} that can be used as a mitigation for
-    * problems described in {ITRC20-approve}.
+    * problems described in {IBEP20-approve}.
     *
     * Emits an {Approval} event indicating the updated allowance.
     *
@@ -149,7 +154,7 @@ contract Token is ITRC20,SuperAdmin,Vesting {
     * @dev Atomically decreases the allowance granted to `spender` by the caller.
     *
     * This is an alternative to {approve} that can be used as a mitigation for
-    * problems described in {ITRC20-approve}.
+    * problems described in {IBEP20-approve}.
     *
     * Emits an {Approval} event indicating the updated allowance.
     *
@@ -179,8 +184,8 @@ contract Token is ITRC20,SuperAdmin,Vesting {
     * - `sender` must have a balance of at least `amount`.
     */
   function _transfer(address sender, address recipient, uint256 amount) virtual internal onlyReleased(sender,_balances[sender].sub(amount)) {
-      require(sender != address(0), "TRC20: transfer from the zero address");
-      require(recipient != address(0), "TRC20: transfer to the zero address");
+      require(sender != address(0), "BEP20: transfer from the zero address");
+      require(recipient != address(0), "BEP20: transfer to the zero address");
       
       _balances[sender] = _balances[sender].sub(amount);      
       _balances[recipient] = _balances[recipient].add(amount);
@@ -198,7 +203,7 @@ contract Token is ITRC20,SuperAdmin,Vesting {
     * - `to` cannot be the zero address.
     */
   function _mint(address account, uint256 amount) internal {
-      require(account != address(0), "TRC20: mint to the zero address");
+      require(account != address(0), "BEP20: mint to the zero address");
 
       _totalSupply = _totalSupply.add(amount);
 
@@ -229,7 +234,7 @@ contract Token is ITRC20,SuperAdmin,Vesting {
     * - `account` must have at least `amount` tokens.
     */
   function _burn(address account, uint256 value) internal {
-      require(account != address(0), "TRC20: burn from the zero address");
+      require(account != address(0), "BEP20: burn from the zero address");
 
       _totalSupply = _totalSupply.sub(value);
 
@@ -251,8 +256,8 @@ contract Token is ITRC20,SuperAdmin,Vesting {
     * - `spender` cannot be the zero address.
     */
   function _approve(address owner, address spender, uint256 value) internal {
-      require(owner != address(0), "TRC20: approve from the zero address");
-      require(spender != address(0), "TRC20: approve to the zero address");
+      require(owner != address(0), "BEP20: approve from the zero address");
+      require(spender != address(0), "BEP20: approve to the zero address");
 
       _allowances[owner][spender] = value;
       emit Approval(owner, spender, value);

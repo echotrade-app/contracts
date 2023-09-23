@@ -3,10 +3,10 @@
 pragma solidity >=0.7.0 <0.9.0;
 
 /**
- * @dev Interface of the TRC20 standard as defined in the EIP. Does not include
- * the optional functions; to access them see {TRC20Detailed}.
+ * @dev Interface of the BEP20 standard as defined in the EIP. Does not include
+ * the optional functions; to access them see {BEP20Detailed}.
  */
-interface ITRC20 {
+interface IBEP20 {
     /**
      * @dev Returns the name of the token.
      */
