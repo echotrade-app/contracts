@@ -382,7 +382,6 @@ contract ECTA is Token {
             require(baseToken == baskets[index].baseToken(),"required uniformed baseTokens");
             amount += baskets[index].adminShareProfit();
         }
-        console.log("gathered",amount,"as profit","");
         return profitShareBalance(baseToken, amount);
         // share alongs with the stackers
     }

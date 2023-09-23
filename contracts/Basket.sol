@@ -5,7 +5,6 @@ pragma solidity >=0.7.0 <0.9.0;
 import "./SafeMath.sol";
 import "./IterableMapping.sol";
 import "./signature.sol";
-import "hardhat/console.sol";
 
 contract Basket {
   using SafeMath for uint256;
@@ -302,7 +301,6 @@ contract Basket {
           continue;
         }
         profits[key] = profits[key].add(SafeMath.div(SafeMath.mul(_lockedFunds.get(key) , _amount),totalLockedFunds));
-        // console.log("shareprofit",key,);
     }
   }
 
