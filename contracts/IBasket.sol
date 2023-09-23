@@ -22,6 +22,6 @@ interface IBasket {
     // adminShareProfit: fetch the admin(ECTA) share of the basket. the found must be transfered to the admin account.
     function adminShareProfit() external returns(uint256);
 
-    // setAssitatnt: the Maintainer of ECTA can set diffrent assitants for each basket, so the basket will be manage by assistance only.
-    function setAssitatnt(address assitant) external returns(bool);
+    // setAssistant: the Maintainer of ECTA can set diffrent assitants for each basket, so the basket will be manage by assistance only.
+    function setAssistant(address assitant) external returns(bool);
 }

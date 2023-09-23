@@ -19,7 +19,9 @@ describe("Basket", async ()=> {
 
     async function _invest(Investor: any, amount: number) {
       await expect(USDT.connect(Investor).approve(await Basket.getAddress(), amount)).not.to.be.reverted;
-      await expect(Basket.connect(Investor).invest(amount, ethers.encodeBytes32String(""))).not.to.be.reverted;
+      let msg = await Basket.invest_signatureData(Investor,amount,Math.floor((await time.latest())/300));
+      let sig  = await Trader.signMessage(ethers.getBytes(msg));
+      await expect(Basket.connect(Investor).invest(amount, sig)).not.to.be.reverted;
     }
     await expect(Basket.connect(Trader).active()).not.to.be.reverted;
     await _invest(Inv1, 100);
@@ -319,7 +321,9 @@ describe("Basket", async ()=> {
     await time.increaseTo(now);
     async function _invest(Investor: any, amount: number) {
       await expect(USDT.connect(Investor).approve(await Basket.getAddress(), amount)).not.to.be.reverted;
-      await expect(Basket.connect(Investor).invest(amount, ethers.encodeBytes32String(""))).not.to.be.reverted;
+      let msg = await Basket.invest_signatureData(Investor,amount,Math.floor((await time.latest())/300));
+      let sig  = await Trader.signMessage(ethers.getBytes(msg));
+      await expect(Basket.connect(Investor).invest(amount, sig)).not.to.be.reverted;
     }
     await expect(Basket.connect(Trader).active()).not.to.be.reverted;
     await expect(USDT.connect(Trader).transfer(Assistant,10000)).not.to.be.reverted;
@@ -448,12 +452,14 @@ describe("Basket", async ()=> {
     let basket = await ethers.getContractFactory("Basket");
     let now = Math.floor(Date.now()/1000);
     let USDT = await CreateUSDT();
-    let Basket = await basket.deploy(100, USDT, Trader,Trader, 1000, 100000, 250, 1500, 500,now+1*3600,now+100*3600 );
+    let Basket = await basket.connect(Trader).deploy(100, USDT, Trader,Trader, 1000, 100000, 250, 1500, 500,now+1*3600,now+100*3600 );
     time.increaseTo(now+50*3600);
 
     async function _invest(Investor: any, amount: number) {
       await expect(USDT.connect(Investor).approve(await Basket.getAddress(), amount)).not.to.be.reverted;
-      await expect(Basket.connect(Investor).invest(amount, ethers.encodeBytes32String(""))).not.to.be.reverted;
+      let msg = await Basket.invest_signatureData(Investor,amount,Math.floor((await time.latest())/300));
+      let sig  = await Trader.signMessage(ethers.getBytes(msg));
+      await expect(Basket.connect(Investor).invest(amount, sig)).not.to.be.reverted;
     }
     
     await expect(Basket.connect(Trader).active()).to.be.reverted;
@@ -484,7 +490,9 @@ describe("Basket", async ()=> {
 
     async function _invest(Investor: any, amount: number) {
       await expect(USDT.connect(Investor).approve(await Basket.getAddress(), amount)).not.to.be.reverted;
-      await expect(Basket.connect(Investor).invest(amount, ethers.encodeBytes32String(""))).not.to.be.reverted;
+      let msg = await Basket.invest_signatureData(Investor,amount,Math.floor((await time.latest())/300));
+      let sig  = await Trader.signMessage(ethers.getBytes(msg));
+      await expect(Basket.connect(Investor).invest(amount, sig)).not.to.be.reverted;
     }
     
     await expect(USDT.connect(Trader).transfer(await Basket.getAddress(), 1000)).not.to.be.reverted;
@@ -534,7 +542,7 @@ describe("Basket", async ()=> {
   async function CreateBasket(baseToken: any,Trader:any) {
     let basket = await ethers.getContractFactory("Basket");
     let now = Math.floor(Date.now()/1000);
-    let Basket = basket.deploy(100, baseToken, Trader, Trader, 0, 100000, 250, 1500, 500,now+1*3600,now+24*3600 );
+    let Basket = basket.connect(Trader).deploy(100, baseToken, Trader, Trader, 0, 100000, 250, 1500, 500,now+1*3600,now+24*3600 );
     return Basket;
   }
   

@@ -46,6 +46,8 @@ contract Basket {
   uint256 public totalQueuedFunds;
   uint256 public adminShare;
 
+  uint256 private signatureExpiration = 300 seconds; // 600s /2  = 300
+
   IterableMapping.Map private _withdrawRequests;
 
   IterableMapping.Map private _lockedFunds;
@@ -59,7 +61,7 @@ contract Basket {
   bytes4 private constant TRANSFER_SELECTOR = bytes4(keccak256("transfer(address,uint256)"));
   bytes4 private constant BALANCE_OF_SELECTOR = bytes4(keccak256("balanceOf(address)"));
 
-  string constant private SIGPREFIX = "\x19ECTA Signed Message:\n32"; 
+  string constant private SIGPREFIX = "\x19Ethereum Signed Message:\n32"; 
 
   event Invest(address _account, uint256 _amount);
   event WithdrawProfit(address _account, uint256 _amount);
@@ -144,7 +146,7 @@ contract Basket {
       return true;
   }
 
-  function setAssitant(address _account) public _onlyAdmin() returns (bool) {
+  function setAssistant(address _account) public _onlyAdmin() returns (bool) {
     adminAssistant = _account;
     return true;
   }
@@ -515,9 +517,14 @@ contract Basket {
 
   // check the signature of allowance of investing which is granted by the superadmin.
   modifier _mustBeAllowedToInvest(uint256 _amount, address _from, bytes memory _signature) {
-    bytes32 SigHash = keccak256(abi.encodePacked(SIGPREFIX,invest_signatureData(_from,_amount,1700000000)));
-    //toDO WIP
-    // require(Sig.recoverSigner(SigHash,_signature) != address(0),"Invalid Signer");
+    uint ptop = block.timestamp/signatureExpiration;
+
+    bytes32 SigHash0 = keccak256(abi.encodePacked(SIGPREFIX,invest_signatureData(_from,_amount,ptop)));
+    bytes32 SigHash1 = keccak256(abi.encodePacked(SIGPREFIX,invest_signatureData(_from,_amount,ptop-1)));
+    require( 
+      Sig.recoverSigner(SigHash0,_signature) == adminAssistant ||
+      Sig.recoverSigner(SigHash1,_signature) == adminAssistant,
+      "Invalid signature");
     _;
   }
   

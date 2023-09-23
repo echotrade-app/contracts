@@ -89,13 +89,16 @@ describe("ECTA", async ()=>{
         let Basket = await basket.deploy(100, await USDT.getAddress(), Other,await ECTA.getAddress(), 0, 100000, 0, 1500, 500,now,now+24*3600 );
         
         await expect(Basket.connect(Other).active()).not.to.be.reverted;
-
+        
         async function _invest(Investor: any, amount: number) {
             await expect(USDT.connect(Investor).approve(await Basket.getAddress(), amount)).not.to.be.reverted;
-            await expect(Basket.connect(Investor).invest(amount, ethers.encodeBytes32String(""))).not.to.be.reverted;
+            let msg = await Basket.invest_signatureData(Investor,amount,Math.floor((await time.latest())/300));
+            let sig  = await Inv2.signMessage(ethers.getBytes(msg));
+            await expect(Basket.connect(Investor).invest(amount, sig)).not.to.be.reverted;
         }
         
         await expect(ECTA.addBasket(await Basket.getAddress())).not.to.be.reverted;
+        await expect(ECTA.connect(Inv1).setAssistant(0,Inv2)).not.to.be.reverted;
 
         await _invest(Inv2,10000);
         await expect(Basket.connect(Other).profitShare(10000, ethers.encodeBytes32String(""), ethers.encodeBytes32String(""))).not.to.be.reverted;
@@ -110,7 +113,7 @@ describe("ECTA", async ()=>{
         await expect(ECTA.connect(Other).removeBasket(0)).to.be.reverted;
 
         await expect(USDT.connect(Other).transfer(await Basket.getAddress(),await Basket.exchangeLockedLiquidity())).not.to.be.reverted;
-        await expect(Basket.transferFundFromExchange(await Basket.exchangeLockedLiquidity())).not.to.be.reverted;
+        await expect(Basket.connect(Inv2).transferFundFromExchange(await Basket.exchangeLockedLiquidity())).not.to.be.reverted;
         await expect(Basket.connect(Other).close()).not.to.be.reverted;
 
         console.log(await ECTA.baskets(0));
