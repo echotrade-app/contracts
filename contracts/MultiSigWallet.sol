@@ -3,6 +3,10 @@ pragma solidity ^0.8.18;
 
 contract MultiSigWallet {
     event Deposit(address indexed sender, uint amount, uint balance);
+    
+    event AddOwner(address indexed sender,address indexed owner);
+    event RemoveOwner(address indexed sender,address indexed owner);
+
     event SubmitTransaction(
         address indexed owner,
         uint indexed txIndex,
@@ -13,12 +17,17 @@ contract MultiSigWallet {
     event ConfirmTransaction(address indexed owner, uint indexed txIndex);
     event RevokeConfirmation(address indexed owner, uint indexed txIndex);
     event ExecuteTransaction(address indexed owner, uint indexed txIndex);
-
+    enum TxType {transfer, addOwner, removeOwner }
     address[] public owners;
     mapping(address => bool) public isOwner;
-    uint public numConfirmationsRequired;
+
+    uint public transferConfirmationsRequired = 70; // 70/100 70%
+    uint public addOwnerConfirmationsRequired = 70; // 70/100 70%
+    uint public removeOwnerConfirmationsRequired = 90; // 90/100 | 90%
+
     bytes4 private _transferSelector;
     struct Transaction {
+        TxType txType;
         address baseToken;
         address to;
         uint value;
@@ -52,25 +61,13 @@ contract MultiSigWallet {
         _;
     }
 
-    constructor(address[] memory _owners, uint _numConfirmationsRequired) {
+    constructor(address[] memory _owners) {
         require(_owners.length > 0, "owners required");
-        require(
-            _numConfirmationsRequired > 0 &&
-                _numConfirmationsRequired <= _owners.length,
-            "invalid number of required confirmations"
-        );
 
         for (uint i = 0; i < _owners.length; i++) {
-            address owner = _owners[i];
-
-            require(owner != address(0), "invalid owner");
-            require(!isOwner[owner], "owner not unique");
-
-            isOwner[owner] = true;
-            owners.push(owner);
+            addOwner(_owners[i]);
         }
 
-        numConfirmationsRequired = _numConfirmationsRequired;
         _transferSelector = bytes4(keccak256("transfer(address,uint256)"));
     }
 
@@ -79,6 +76,7 @@ contract MultiSigWallet {
     }
 
     function submitTransaction(
+        TxType _txType,
         address _contract,
         address _to,
         uint _value,
@@ -88,6 +86,7 @@ contract MultiSigWallet {
 
         transactions.push(
             Transaction({
+                txType: _txType,
                 baseToken: _contract,
                 to: _to,
                 value: _value,
@@ -114,22 +113,42 @@ contract MultiSigWallet {
         uint _txIndex
     ) public onlyOwner txExists(_txIndex) notExecuted(_txIndex) {
         Transaction storage transaction = transactions[_txIndex];
+        if (transaction.txType == TxType.transfer) {
+            require(
+                transaction.numConfirmations >= (transferConfirmationsRequired*owners.length)/100,
+                "cannot execute tx"
+            );
 
-        require(
-            transaction.numConfirmations >= numConfirmationsRequired,
-            "cannot execute tx"
-        );
-
-        transaction.executed = true;
-        if (transaction.baseToken == address(0) ) {
-          (bool success, ) = transaction.to.call{value: transaction.value}(
-            transaction.data
-          );
-          require(success, "tx failed");
+            transaction.executed = true;
+            if (transaction.baseToken == address(0) ) {
+                (bool success, ) = transaction.to.call{value: transaction.value}(
+                    transaction.data
+                );
+                require(success, "tx failed");
+            }else {
+                (bool success, ) = transaction.baseToken.call(abi.encodeWithSelector(_transferSelector, transaction.to, transaction.value));
+                require(success, "tx failed");
+            }
+        }else if (transaction.txType == TxType.addOwner) {
+            require(
+                transaction.numConfirmations >= (addOwnerConfirmationsRequired*owners.length)/100,
+                "cannot execute tx"
+            );
+            transaction.executed = true;
+            bool success = addOwner(transaction.to);
+            require(success, "tx failed");
+        }else if (transaction.txType == TxType.removeOwner) {
+            require(
+                transaction.numConfirmations >= (removeOwnerConfirmationsRequired*owners.length)/100,
+                "cannot execute tx"
+            );
+            transaction.executed = true;
+            bool success = removeOwner(transaction.to);
+            require(success, "tx failed");
         }else {
-          (bool success, ) = transaction.baseToken.call(abi.encodeWithSelector(_transferSelector, transaction.to, transaction.value));
-          require(success, "tx failed");
+            require(false,"transaction not supported");
         }
+        
         emit ExecuteTransaction(msg.sender, _txIndex);
     }
 
@@ -176,5 +195,32 @@ contract MultiSigWallet {
             transaction.executed,
             transaction.numConfirmations
         );
+    }
+
+    function addOwner(address owner) internal returns (bool) {
+        require(owner != address(0), "invalid owner");
+        require(!isOwner[owner], "owner not unique");
+        isOwner[owner] = true;
+        owners.push(owner);
+        emit AddOwner(msg.sender,owner);
+        return true;
+    }
+
+    function removeOwner(address owner) internal returns (bool) {
+        require(owner != address(0), "invalid owner");
+        require(isOwner[owner], "owner is not exist");
+        delete isOwner[owner];
+        bool found;
+        for (uint256 i = 0; i < owners.length - 1; i++) {
+            if (owners[i]== owner) {
+                found = true;
+            }
+            if (found) {
+                owners[i] = owners[i + 1];
+            }
+        }
+        owners.pop();
+        emit RemoveOwner(msg.sender,owner);
+        return true;
     }
 }
