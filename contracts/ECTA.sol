@@ -20,16 +20,34 @@ contract ECTA is Token {
         uint256 amount;
         uint256 releaseAt;
     }
+
     struct Investor {
         address _address;
         uint256 _share;
     }
 
+    /**
+        * @dev Public variable representing the minimum amount allowed for staking, which is 100,000 ECTA.
+        * @dev This minimum stake value is designed to ensure the proper functioning of the profit-sharing mechanism.
+        */
     uint256 public minimumStakeValue;
-    uint256 public lockDuration = 14 days;
 
+    /**
+        * @dev Public variable representing the duration (14 days) for which assets will be locked before being unlocked upon request.
+        * @dev This lock duration is designed to promote market stability.
+        */
+    uint256 public lockDuration = 14 days;
+    
+    /**
+        * @dev Private `IterableMapping.Map` representing the staked balances of each staker or account.
+        * @dev Stakers will receive profits based on their share of the total stacked amount.
+        */
     IterableMapping.Map private stakedBalances;
 
+    /**
+        * @dev Public variable representing the total amount staked across all accounts.
+        * @dev Stakers will receive profits based on their share of the total staked amount.
+        */
     uint256 public totalStaked;
 
     /**
