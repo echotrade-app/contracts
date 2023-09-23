@@ -18,6 +18,7 @@ contract MultiSigWallet {
     event ConfirmTransaction(address indexed owner, uint indexed txIndex);
     event RevokeConfirmation(address indexed owner, uint indexed txIndex);
     event ExecuteTransaction(address indexed owner, uint indexed txIndex);
+    
     enum TxType {transfer, addOwner, removeOwner }
     address[] public owners;
     mapping(address => bool) public isOwner;
@@ -26,7 +27,7 @@ contract MultiSigWallet {
     uint public addOwnerConfirmationsRequired = 70; // 70/100 70%
     uint public removeOwnerConfirmationsRequired = 90; // 90/100 | 90%
 
-    bytes4 private _transferSelector;
+    bytes4 private _transferSelector = bytes4(keccak256("transfer(address,uint256)"));
     struct Transaction {
         TxType txType;
         address baseToken;
@@ -68,8 +69,6 @@ contract MultiSigWallet {
         for (uint i = 0; i < _owners.length; i++) {
             addOwner(_owners[i]);
         }
-
-        _transferSelector = bytes4(keccak256("transfer(address,uint256)"));
     }
 
     receive() external payable {
@@ -153,9 +152,7 @@ contract MultiSigWallet {
         emit ExecuteTransaction(msg.sender, _txIndex);
     }
 
-    function revokeConfirmation(
-        uint _txIndex
-    ) public onlyOwner txExists(_txIndex) notExecuted(_txIndex) {
+    function revokeConfirmation(uint _txIndex) public onlyOwner txExists(_txIndex) notExecuted(_txIndex) {
         Transaction storage transaction = transactions[_txIndex];
 
         require(isConfirmed[_txIndex][msg.sender], "tx not confirmed");
