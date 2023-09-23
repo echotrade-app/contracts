@@ -26,22 +26,35 @@ contract ECTA is Token {
     }
 
     uint256 public minimumStakeValue;
-    uint256 public lockDuration;
+    uint256 public lockDuration = 14 days;
 
     IterableMapping.Map private stakedBalances;
 
     uint256 public totalStaked;
 
+    /**
+        * @dev Private mapping that stores unlock or unstaked requests for each address.
+        * @dev The address key represents the account address, and the UnlockRequest[] value contains the requests.
+        */
     mapping (address => UnlockRequest[] ) private _requests;
-    mapping (address => uint256) public locked;
 
+    // TODO : speicify exactly what is the locked?
+    mapping (address => uint256) public locked;
+    
+    /**
+        * @dev Private mapping from accounts to contract addresses and the corresponding amount of profit for each contract.
+        */
     mapping (address => mapping (address => uint256)) private _profits;
 
-    // total locked funds from diffrents contracts.
-    // address is the contract address
-    // uint256 is the total Commitment to pay amount
+    /**
+        * @dev Private mapping that tracks the total locked funds from different contracts.
+        * @dev The address key represents the contract address, and the uint256 value represents the total commitment-to-pay amount.
+        */
     mapping (address => uint256) private _lockedFunds;
     
+    /**
+        * @dev Public array representing the list of Baskets within the ECTA.
+        */
     IBasket[] public baskets;
     
     constructor(
@@ -134,7 +147,7 @@ contract ECTA is Token {
     }
 
     /**
-        * @dev Checks if the specified `amount` is available for transferring or burning.
+        * @dev Checks if the specified `amount` is available for transferring.
         * @param account The address of the account from which the transfer or burn is initiated.
         * @param amount The amount to check for availability.
         */
@@ -145,10 +158,21 @@ contract ECTA is Token {
 
     // ─── Staking ─────────────────────────────────────────────────────────
 
+    /**
+        * @dev External function to stake a specified `amount`. Staking locks the amount to receive rewards and a share from the platform, traders, and investors.
+        * @param amount The amount to stake.
+        * @return A boolean indicating the success of the staking operation.
+        */
     function stake(uint256 amount) external returns (bool) {
         return _stake(msg.sender, amount);
     }
 
+    /**
+        * @dev Internal function to stake a specified `amount` for the `account`. Staking locks the amount to receive rewards and a share from the platform.
+        * @param account The address of the account staking the amount.
+        * @param amount The amount to stake.
+        * @return A boolean indicating the success of the staking operation.
+        */
     function _stake(address account, uint256 amount) internal stakable(account, amount) returns (bool) {
         stakedBalances.set(account, stakedBalances.get(account) + amount);
         locked[account] = locked[account] + amount;
@@ -202,29 +226,57 @@ contract ECTA is Token {
         _requests[account].pop();
     }
 
+    /**
+        * @dev Internal function that returns the total amount of unlocked requests for the specified `account`.
+        * @param account The address of the account to query unlock requests for.
+        * @return The total amount of unlocked requests for the account.
+        */
     // TODO TO be covered by unit tests
-    function _getTotalUnlockRequests(address account) internal view returns (uint256 sum) {
+    function _getTotalUnlockRequests(address account) internal view returns (uint256) {
+        uint256 sum;
         for (uint256 i = 0; i < _requests[account].length; i++) {
             sum += _requests[account][i].amount;
         }
         return sum;
     }
 
-    function getTotalUnlockedRequests(address account) external view returns (uint256 sum) {
+    /**
+        * @dev External function that returns the total number of unlocked requests for a specified `account`'s staked amount.
+        * @param account The address of the account to query unlock requests for.
+        * @return The total number of unlocked requests for the staked amount.
+        */
+    function getTotalUnlockedRequests(address account) external view returns (uint256) {
         return _getTotalUnlockRequests(account);
     }
 
     // ─── Widthraw Profit ─────────────────────────────────────────────────
     
+    /**
+        * @dev Allows the `msg.sender` to withdraw their profit from the specified `_contract`.
+        * @param _contract The address of the contract from which profit is being withdrawn.
+        * @return A boolean indicating the success of the profit withdrawal.
+        */
     function withdrawProfit(address _contract) public haveSufficientWithdrawProfit(_contract,msg.sender) returns (bool) {
         return _withrawProfit(_contract,msg.sender);
     }
 
+    /**
+        * @dev Allows the `_to` address to withdraw profit from the specified `_contract`. The profit is transferred to the `_to` address, not msg.sender.
+        * @param _contract The address of the contract from which profit is being withdrawn.
+        * @param _to The address to which the profit is transferred.
+        * @return A boolean indicating the success of the profit withdrawal.
+        */
     // TODO TO be covered by unit tests
     function withdrawProfit(address _contract,address _to) public haveSufficientWithdrawProfit(_contract,_to) returns (bool) {
         return _withrawProfit(_contract,_to);
     }
     
+    /**
+        * @dev Internal function for withdrawing profit of the `_to` address. The profit is transferred to the `_to` address, not msg.sender.
+        * @param _contract The address of the contract from which profit is being withdrawn.
+        * @param _to The address to which the profit is transferred.
+        * @return A boolean indicating the success of the profit withdrawal.
+        */
     function _withrawProfit(address _contract, address _to) internal returns (bool) {
         (bool _success,) = _contract.call(abi.encodeWithSelector(TRANSFER_SELECTOR,_to, _profits[_to][_contract]));
         require(_success,"Transfering token fials");
