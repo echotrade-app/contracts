@@ -353,9 +353,11 @@ contract ECTA is Token {
         * @param _assistant The address of the assistant to set.
         * @return A boolean indicating the success of the operation.
         */
+    // TODO to be cover by unit tests.
     function setAssitant(uint index,address _assistant) external _onlySuperAdmin() returns (bool) {
-        // TODO
-        // call the set assitant function of the Basket
+        bool success = baskets[index].setAssitatnt(_assistant);
+        require(success,"setAssistant failed for this basket");
+        return true;
     }
 
     function gatherProfits(uint[] memory indexes) external returns (bool) {

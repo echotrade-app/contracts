@@ -23,5 +23,5 @@ interface IBasket {
     function adminShareProfit() external returns(uint256);
 
     // setAssitatnt: the Maintainer of ECTA can set diffrent assitants for each basket, so the basket will be manage by assistance only.
-    function setAssitatnt(address assitant) external returns(uint256);
+    function setAssitatnt(address assitant) external returns(bool);
 }

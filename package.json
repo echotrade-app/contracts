@@ -1,6 +1,6 @@
 {
 	"scripts": {
-		"start:local": "start https://www.tronide.io && remixd -s . -u https://www.tronide.io",
+		"start:local": "start https://remix.ethereum.org && remixd -s . -u https://remix.ethereum.org",
 		"test": "hardhat test"
 	},
 	"dependencies": {
