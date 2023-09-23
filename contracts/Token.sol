@@ -28,7 +28,6 @@ contract Token is IBEP20,SuperAdmin,Vesting {
   uint256 internal _totalSupply;
   
   constructor(string memory name, string memory symbol, uint8 decimals) payable {
-
     _name = name;
     _symbol = symbol;
     _decimals = decimals;
@@ -205,11 +204,8 @@ contract Token is IBEP20,SuperAdmin,Vesting {
     */
   function _mint(address account, uint256 amount) internal {
       require(account != address(0), "BEP20: mint to the zero address");
-
       _totalSupply = _totalSupply.add(amount);
-
       _balances[account] = _balances[account].add(amount);
-
       emit Transfer(address(0), account, amount);
   }
 
@@ -236,9 +232,7 @@ contract Token is IBEP20,SuperAdmin,Vesting {
     */
   function _burn(address account, uint256 value) internal {
       require(account != address(0), "BEP20: burn from the zero address");
-
       _totalSupply = _totalSupply.sub(value);
-
       _balances[account] = _balances[account].sub(value);
       emit Transfer(account, address(0), value);
   }

@@ -18,6 +18,10 @@ contract Vesting {
 
     mapping(address => VestingSchedule) private vestingSchedules;
 
+    /** @dev Modifier: Checks whether the funds for the specified `account` with a balance are released.
+        * @param account The address of the account to check for released funds.
+        * @param balance The balance of the account to be checked for released funds.
+        */
     modifier onlyReleased(address account, uint256 balance) {
         if (vestingSchedules[account].base != 0 && block.timestamp < vestingSchedules[account].endReleaseAt ) {
             require(

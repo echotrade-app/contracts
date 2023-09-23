@@ -149,8 +149,8 @@ contract ECTA is Token {
         */
     // TODO TO be covered by unit tests
     modifier unstakable(address account, uint256 amount) {
-        uint256 reminding = stakedBalances.get(account).sub(_getTotalUnlockRequests(account)).sub(amount);
-        require(reminding == 0 || reminding >= minimumStakeValue,"Iinvalid unstake value");
+        uint256 remaining = stakedBalances.get(account).sub(_getTotalUnlockRequests(account)).sub(amount);
+        require(remaining == 0 || remaining >= minimumStakeValue,"Iinvalid unstake value");
         _;
     }
 
@@ -223,7 +223,7 @@ contract ECTA is Token {
         uint256 sum;
         while (_requests[account].length > 0 && _requests[account][0].releaseAt <= block.timestamp) {
             sum += _requests[account][0].amount;
-            _shiftRequests(account, 0);
+            _unshiftRequests(account, 0);
         }
         locked[account] -= sum;
         return true;
@@ -235,7 +235,7 @@ contract ECTA is Token {
     }
 
     // TODO TO be covered by unit tests
-    function _shiftRequests(address account, uint256 index) private {
+    function _unshiftRequests(address account, uint256 index) private {
         require(index < _requests[account].length, "Index out of bounds");
 
         for (uint256 i = index; i < _requests[account].length - 1; i++) {
@@ -284,7 +284,6 @@ contract ECTA is Token {
         * @param _to The address to which the profit is transferred.
         * @return A boolean indicating the success of the profit withdrawal.
         */
-    // TODO TO be covered by unit tests
     function withdrawProfit(address _contract,address _to) public haveSufficientWithdrawProfit(_contract,_to) returns (bool) {
         return _withrawProfit(_contract,_to);
     }
@@ -332,7 +331,7 @@ contract ECTA is Token {
         * @param index The index of the Basket to remove.
         * @return A boolean indicating the success of the removal operation.
         */
-    function removeBasket(uint index) external returns (bool) {
+    function removeBasket(uint index) external _onlySuperAdmin() returns (bool) {
         require(baskets[index].status() == Status.closed,"Basket must be closed");
         bool success = _gatherProfits(index);
         require(success,"gathering profits failed");
@@ -353,7 +352,6 @@ contract ECTA is Token {
         * @param _assistant The address of the assistant to set.
         * @return A boolean indicating the success of the operation.
         */
-    // TODO to be cover by unit tests.
     function setAssistant(uint index,address _assistant) external _onlySuperAdmin() returns (bool) {
         bool success = baskets[index].setAssistant(_assistant);
         require(success,"setAssistant failed for this basket");
@@ -407,7 +405,6 @@ contract ECTA is Token {
         * @param _amount The approved amount to be transferred and shared.
         * @return A boolean indicating the success of the profit-sharing operation.
         */
-    // TODO TO be covered by unit tests
     function profitShareApproved(address payable _contract, uint256 _amount) public mustBeTransferred(_contract,_amount,msg.sender,address(this)) returns (bool) {
         return _profitShare(_contract,_amount);
     }
@@ -419,7 +416,6 @@ contract ECTA is Token {
         * @param _from The address initiating the profit share.
         * @return A boolean indicating the success of the profit-sharing operation.
         */
-    // TODO TO be covered by unit tests
     function profitShareApproved(address payable _contract, uint256 _amount, address _from) public mustBeTransferred(_contract,_amount,_from,address(this)) returns (bool) {
         return _profitShare(_contract,_amount);
     }
