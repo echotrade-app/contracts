@@ -7,6 +7,8 @@ import "./SafeMath.sol";
 import "./IterableMapping.sol";
 import "./Vesting.sol";
 import "./IBasket.sol";
+import "./IBEP20.sol";
+import "hardhat/console.sol";
 
 contract ECTA is Token {
     using SafeMath for uint256;
@@ -60,7 +62,6 @@ contract ECTA is Token {
         */
     mapping (address => UnlockRequest[] ) private _requests;
 
-    // TODO : speicify exactly what is the locked?
     mapping (address => uint256) public locked;
     
     /**
@@ -108,7 +109,6 @@ contract ECTA is Token {
         * @param _from The address from which the amount should be transferred.
         * @param _to The address to which the amount should be transferred.
         */
-    // TODO TO be covered by unit tests
     modifier mustBeTransferred(address _contract, uint256 _amount, address _from,address _to) {
         (bool _success, ) = _contract.call(abi.encodeWithSelector(TRANSFER_FROM_SELECTOR,_from, _to, _amount));
         require(_success,"Transfering from _contract failed");
@@ -142,9 +142,8 @@ contract ECTA is Token {
         * @param account The address of the account making the staking operation.
         * @param amount The amount to stake, to be checked for unstakability.
         */
-    // TODO TO be covered by unit tests
     modifier unstakable(address account, uint256 amount) {
-        uint256 remaining = stakedBalances.get(account).sub(_getTotalUnlockRequests(account)).sub(amount);
+        uint256 remaining = stakedBalances.get(account).sub(amount);
         require(remaining == 0 || remaining >= minimumStakeValue,"Iinvalid unstake value");
         _;
     }
@@ -156,6 +155,7 @@ contract ECTA is Token {
         */
     modifier stakable(address account, uint256 amount) {
         require(stakedBalances.get(account).add(amount) >= minimumStakeValue,"Invalid stake value");
+        require(_balances[account] >= locked[account] + amount,"insufficient balance");
         _;
     }
 
@@ -193,12 +193,10 @@ contract ECTA is Token {
         return true;
     }
 
-    // TODO TO be covered by unit tests
     function unstake(uint256 amount) external returns (bool) {
-        return _stake(msg.sender, amount);
+        return _unstake(msg.sender, amount);
     }
 
-    // TODO TO be covered by unit tests
     function _unstake(address account, uint256 amount) internal unstakable(account, amount) returns (bool) {
         uint256 newStakedBalance = stakedBalances.get(account).sub(amount);
         if (newStakedBalance == 0) {
@@ -211,7 +209,6 @@ contract ECTA is Token {
         return true;
     }
 
-    // TODO TO be covered by unit tests
     function widthrawReleased(address account) public returns (bool) {
         require(_requests[account].length > 0, "No request to withdraw staked");
         require(_requests[account][0].releaseAt <= block.timestamp, "Funds are not released yet");
@@ -224,12 +221,10 @@ contract ECTA is Token {
         return true;
     }
 
-    // TODO TO be covered by unit tests
     function widthrawReleased() public returns (bool) {
         return widthrawReleased(msg.sender);
     }
 
-    // TODO TO be covered by unit tests
     function _unshiftRequests(address account, uint256 index) private {
         require(index < _requests[account].length, "Index out of bounds");
 
@@ -244,7 +239,6 @@ contract ECTA is Token {
         * @param account The address of the account to query unlock requests for.
         * @return The total amount of unlocked requests for the account.
         */
-    // TODO TO be covered by unit tests
     function _getTotalUnlockRequests(address account) internal view returns (uint256) {
         uint256 sum;
         for (uint256 i = 0; i < _requests[account].length; i++) {
@@ -301,9 +295,11 @@ contract ECTA is Token {
         return _profits[_account][_contract];
     }
 
-    // TODO TO be covered by unit tests
     function lockedFunds(address _contract) public view returns (uint256) {
         return _lockedFunds[_contract];
+    }
+    function stacked(address _address) public view returns (uint256) {
+        return stakedBalances.get(_address);
     }
     
     // ─── Basket Managment ────────────────────────────────────────────────
@@ -371,7 +367,6 @@ contract ECTA is Token {
         // fetch basekt base token,
         // fetch admin share,
         for (uint256 index = 1; index < indexs.length; index++) {
-            // TODO TO be covered by unit tests
             require(baseToken == baskets[index].baseToken(),"required uniformed baseTokens");
             amount += baskets[index].adminShareProfit();
         }

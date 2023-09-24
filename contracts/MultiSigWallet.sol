@@ -202,7 +202,7 @@ contract MultiSigWallet {
         require(!isOwner[owner], "owner not unique");
         isOwner[owner] = true;
         owners.push(owner);
-        // emit AddOwner(msg.sender,owner);
+        emit AddOwner(msg.sender,owner);
         return true;
     }
 

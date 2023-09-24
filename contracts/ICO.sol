@@ -17,7 +17,6 @@ contract ICO is SuperAdmin {
         uint256 comStartVol;
     }
 
-
     /**
         * @dev Represents the token that is sold during the ICO (Initial Coin Offering).
         */

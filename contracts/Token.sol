@@ -185,7 +185,8 @@ contract Token is IBEP20,SuperAdmin,Vesting {
   function _transfer(address sender, address recipient, uint256 amount) virtual internal onlyReleased(sender,_balances[sender].sub(amount)) {
       require(sender != address(0), "BEP20: transfer from the zero address");
       require(recipient != address(0), "BEP20: transfer to the zero address");
-      
+      require(recipient != address(this),"you cannot transfer this same contract");
+
       _balances[sender] = _balances[sender].sub(amount);      
       _balances[recipient] = _balances[recipient].add(amount);
       
