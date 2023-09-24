@@ -2,12 +2,9 @@
 
 pragma solidity >=0.7.0 <0.9.0;
 
-import "./IBEP20.sol";
 import "./SafeMath.sol";
 import "./IterableMapping.sol";
 import "./SuperAdmin.sol";
-import "./Vesting.sol";
-import "./Token.sol";
 
 
 contract ICO is SuperAdmin {
