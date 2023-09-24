@@ -20,6 +20,7 @@ contract ICO is SuperAdmin {
         uint256 comStartVol;
     }
 
+
     // Token is the token sell in ICO
     address public token;
 
@@ -73,8 +74,8 @@ contract ICO is SuperAdmin {
 
         uint256 comVol;
         for (uint256 index = 0; index < _prices.length; index++) {
-            prices.push(Price(_prices[index].amount,_prices[index].volume,comVol));
             comVol = comVol + _prices[index].volume;
+            prices.push(Price(_prices[index].amount,_prices[index].volume,comVol));
         }
         
         minAmount = _minAmount;
@@ -124,10 +125,7 @@ contract ICO is SuperAdmin {
         require(_success,"transfering Token failed");
         return true;
     }
-    
-    function buy_signaureData(address _from, uint256 _amount, uint256 _exp) public view returns (bytes32) {
-        return keccak256(abi.encodePacked(address(this),_from, _amount, _exp));
-    }
+
     // ─── Utils ───────────────────────────────────────────────────────────
     function mybalance(address _contract) internal returns (uint256) {
         (bool _success,bytes memory _data ) = _contract.call(abi.encodeWithSelector(_balanceOfSelector,address(this)));
@@ -141,7 +139,7 @@ contract ICO is SuperAdmin {
 
     function getActivePrice() public view returns (Price memory price) {
         for (uint256 index = 0; index < prices.length; index++) {
-            if (prices[index].comStartVol <= filledAmount){
+            if (prices[index].comStartVol > filledAmount){
                 return prices[index];
             }
         }
