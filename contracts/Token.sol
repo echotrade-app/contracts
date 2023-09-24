@@ -3,7 +3,6 @@
 pragma solidity >=0.7.0 <0.9.0;
 
 import "./IBEP20.sol";
-import "./Basket.sol";
 import "./SafeMath.sol";
 import "./IterableMapping.sol";
 import "./SuperAdmin.sol";
@@ -27,10 +26,10 @@ contract Token is IBEP20,SuperAdmin,Vesting {
   
   uint256 internal _totalSupply;
   
-  constructor(string memory name, string memory symbol, uint8 decimals) payable {
-    _name = name;
-    _symbol = symbol;
-    _decimals = decimals;
+  constructor(string memory Name, string memory Symbol, uint8 Decimals) payable {
+    _name = Name;
+    _symbol = Symbol;
+    _decimals = Decimals;
 
   }
 

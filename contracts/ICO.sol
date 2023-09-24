@@ -3,7 +3,6 @@
 pragma solidity >=0.7.0 <0.9.0;
 
 import "./IBEP20.sol";
-import "./Basket.sol";
 import "./SafeMath.sol";
 import "./IterableMapping.sol";
 import "./SuperAdmin.sol";
@@ -20,6 +19,7 @@ contract ICO is SuperAdmin {
         uint256 volume;
         uint256 comStartVol;
     }
+
 
     // Token is the token sell in ICO
     address public token;
@@ -111,6 +111,7 @@ contract ICO is SuperAdmin {
     function buy(address _baseToken,uint256 amount) external _isAcceptable(_baseToken) _isValid(amount) _mustHaveSufficentFund(amount) _mustBeTransferred(_baseToken,baseAmount(amount),msg.sender,address(this)) returns (bool success ) {
         require(amount > 0, "amount cannot be empty");
         emit Buy(msg.sender, amount, (baseAmount(amount)*_decimalFactor)/amount);
+        filledAmount += amount;
         return transfer(token, amount, msg.sender);
     }
 

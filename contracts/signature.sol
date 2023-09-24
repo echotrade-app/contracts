@@ -6,22 +6,13 @@ library Sig {
 
   function recoverSigner(bytes32 _signedMessageHash, bytes memory _signature ) internal pure returns (address) {
     (bytes32 r, bytes32 s, uint8 v) = splitSignature(_signature);
-    // return ecrecover(keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", _signedMessageHash)), v, r, s);
     return ecrecover(_signedMessageHash, v, r, s);
   }
     
   function splitSignature(bytes memory sig) private pure returns (bytes32 r, bytes32 s, uint8 v) {
         require(sig.length == 65, "invalid signature length");
         assembly {
-            /*
-            First 32 bytes stores the length of the signature
-
-            add(sig, 32) = pointer of sig + 32
-            effectively, skips first 32 bytes of signature
-
-            mload(p) loads next 32 bytes starting at the memory address p into memory
-            */
-
+          
             // first 32 bytes, after the length prefix
             r := mload(add(sig, 32))
             // second 32 bytes

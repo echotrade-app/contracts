@@ -24,7 +24,11 @@ contract ECTA is Token {
     struct Investor {
         address _address;
         uint256 _share;
+        uint256 _startReleaseAt;
+        uint256 _releaseDuration;
     }
+
+    uint8 DESIMALS = 6;
 
     /**
         * @dev Public variable representing the minimum amount allowed for staking, which is 100,000 ECTA.
@@ -76,32 +80,23 @@ contract ECTA is Token {
     IBasket[] public baskets;
     
     constructor(
-        uint256 startReleaseAt,
-        uint releaseDuration,
-        Investor[] memory _investors,
-        address _company,
-        address _treasury,
-        address _team,
-        address _liquidity,
-        address _capital
-        ) Token("ECTA","ECTA",6) {
+        Investor[] memory _investors
+        ) Token("ECTA","ECTA",DESIMALS) {
         
-        uint256 decimalFactor = 10**6;
-        uint256 __totalSupply = 100_000_000*decimalFactor;
-        uint256 _InvSum;
+        uint256 decimalFactor = 10**DESIMALS;
         minimumStakeValue = 100_000*decimalFactor;
+        
+        uint256 _InvSum;
         for (uint256 i = 0; i < _investors.length; i++) {
             Investor memory Inv = _investors[i];  
             _InvSum += Inv._share*decimalFactor;
-            _mint(Inv._address, Inv._share*decimalFactor, startReleaseAt, releaseDuration);
+            if (Inv._releaseDuration != 0 ) {
+                _mint(Inv._address, Inv._share*decimalFactor, Inv._startReleaseAt, Inv._releaseDuration);
+            }else {
+                _mint(Inv._address, Inv._share*decimalFactor);
+            }
         }
-        require(_InvSum == 27_000_000*decimalFactor);
-        _mint(_company, 18_000_000*decimalFactor,startReleaseAt,releaseDuration);
-        _mint(_treasury, 18_000_000*decimalFactor,startReleaseAt,releaseDuration);
-        _mint(_liquidity, 10_000_000*decimalFactor,startReleaseAt,releaseDuration);
-        _mint(_team, 14_000_000*decimalFactor,startReleaseAt,releaseDuration);
-        _mint(_capital, 13_000_000*decimalFactor);
-        require(__totalSupply == totalSupply());
+        require(_InvSum == 100_000_000*decimalFactor);
     }
 
     // ─── Modifiers ───────────────────────────────────────────────────────

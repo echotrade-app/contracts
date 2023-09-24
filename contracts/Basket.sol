@@ -195,6 +195,7 @@ contract Basket {
     }else {
       success = _loss(uint256(-_amount));
     }
+    
     _profitShares.push(ProfitShareRecord(++iteration, _amount ,_history));
     emit ProfitShare(_amount);
     return success;
@@ -456,8 +457,6 @@ contract Basket {
   // ─── Investing ───────────────────────────────────────────────────────
 
   function invest(uint256 _amount, bytes memory _signature) public
-    _isActive() 
-    _isAcceptable(_amount) 
     _mustBeAllowedToInvest(_amount,msg.sender,_signature) 
     _mustBeTransferred(_amount,msg.sender,address(this)) 
     returns (bool) {
@@ -479,13 +478,6 @@ contract Basket {
   }
 
   // ─── Modifiers ───────────────────────────────────────────────────────
-
-
-  // specify weather the basket is active or not.
-  modifier _isActive() {
-    require(status == Status.active, "Basket is not active yet");
-    _;
-  }
   
   // only owners (trader or superadmin) can call the function
   modifier _onlyOwner() {
@@ -515,24 +507,19 @@ contract Basket {
 
   // check the signature of allowance of investing which is granted by the superadmin.
   modifier _mustBeAllowedToInvest(uint256 _amount, address _from, bytes memory _signature) {
-    uint ptop = block.timestamp/signatureExpiration;
-
-    bytes32 SigHash0 = keccak256(abi.encodePacked(SIGPREFIX,invest_signatureData(_from,_amount,ptop)));
-    bytes32 SigHash1 = keccak256(abi.encodePacked(SIGPREFIX,invest_signatureData(_from,_amount,ptop-1)));
+    require(status == Status.active, "Basket is not active yet");
+    require(totalQueuedFunds.add(totalLockedFunds).add(_amount).sub(totalWithdrawRequests) <= maximumFund,"the Basket is full");
+    require(block.timestamp < endTime,"investing time is ended");
+    bytes32 SigHash0 = keccak256(abi.encodePacked(SIGPREFIX,invest_signatureData(_from,_amount,block.timestamp/signatureExpiration)));
+    // bytes32 SigHash1 = keccak256(abi.encodePacked(SIGPREFIX,invest_signatureData(_from,_amount,ptop-1)));
     require( 
-      Sig.recoverSigner(SigHash0,_signature) == adminAssistant ||
-      Sig.recoverSigner(SigHash1,_signature) == adminAssistant,
+      Sig.recoverSigner(SigHash0,_signature) == adminAssistant,
+      // Sig.recoverSigner(SigHash0,_signature) == adminAssistant ||
+      // Sig.recoverSigner(SigHash1,_signature) == adminAssistant,
       "Invalid signature");
     _;
   }
   
-  // check that after investing this _amount the total funds is not exceeding the _maximum funds.
-  modifier _isAcceptable(uint256 _amount) {
-    require(totalQueuedFunds.add(totalLockedFunds).add(_amount).sub(totalWithdrawRequests) <= maximumFund,"the Basket is full");
-    require(block.timestamp < endTime);
-    _;
-  }
-
   modifier _ownerFundTransfered() {
     require(_mybalance(baseToken)>= traderFund,"the Trader Funds is not transfered yet");
     _;
