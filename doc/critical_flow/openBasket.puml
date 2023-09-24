@@ -1,0 +1,32 @@
+@startuml
+title Open Basket
+
+actor Trader
+participant EchoTrade
+participant USDT
+participant IDVET
+
+Trader -> EchoTrade : Create Basket
+activate EchoTrade
+EchoTrade -> EchoTrade : Validate Basket
+EchoTrade -> EchoTrade : Sing the Data
+EchoTrade --> Trader : OK, SingedData
+deactivate EchoTrade
+Trader -> USDT : Approve USDT
+activate USDT
+USDT -> Trader : OK
+deactivate USDT
+Trader -> IDVET : Create Basket ? Singature
+activate IDVET
+IDVET -> IDVET : Validate Singnature
+IDVET -> IDVET : Validate Approval
+IDVET -> IDVET : Create Basket Contract
+IDVET -> USDT : TransferFrom to BasketContract
+activate USDT
+USDT -> IDVET : OK
+deactivate USDT
+IDVET --> Trader : OK
+deactivate IDVET
+EchoTrade <- : Event (Create Basket)
+EchoTrade --> Trader : WS:// Basket Created
+@enduml
